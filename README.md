@@ -14,3 +14,7 @@ It is built on **zaxtools** from [zax-formats](../zax-formats) (every file forma
 6. `git config core.hooksPath tools/git-hooks` (the pre-push hook: no game data, no private names or paths).
 
 The game data is not included and must never go into the repository: every player brings the original assets from their own copy. The editor saves into its own output folder, never into the game data.
+
+## Licence
+
+MIT (`LICENSE`). The editor uses PySide6 (Qt for Python, LGPL-3.0), which is installed separately and not part of this repository. This licence covers only the project's own code and documentation. It grants no right to "Zax: The Alien Hunter" itself: the game, its executable, data, texts, names and artwork belong to their rights holders, are not included, and every player brings them from their own copy.
