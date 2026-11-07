@@ -2,6 +2,15 @@
 
 The level editor for "Zax: The Alien Hunter" (Reflexive Entertainment / JoWooD, 2001), PySide6: objects, polygons, ground, surfaces, mini map, transitions, dialogue scripts, own graphics, a model viewer, Test in game; English with a German translation.
 
+![The editor with a level open: objects, the map with the links of the selected character, its properties and dialogue](docs/images/editor-properties.png)
+
+*A level open in the editor: the object list, the map with the links of the selected character, its properties, who uses it and its dialogue.*
+
+| | |
+|---|---|
+| ![The model browser and the level settings](docs/images/editor-models.png) | ![A cave level close up with a selected Rogcoil](docs/images/editor-cave.png) |
+| The model browser and the level settings (music, start points, mini map) | A cave level close up, a Rogcoil selected |
+
 It is built on **zaxtools** from [zax-formats](../zax-formats) (every file format of the game read and written byte for byte), which it expects next to this repository (or `ZAX_FORMATS`). The decompilation of Zax.exe is zax-decomp (its docs explain the engine behind the editor's checks and help texts); Test in game runs the VM tool of the test harness next to it (`ZAX_TESTTOOLS`), which is not published. Until 2026-11-07 the editor and the format library were one repository, zax-toolbox.
 
 ## Setup
