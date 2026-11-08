@@ -2,6 +2,10 @@
 # Environment: ZAX_EDITOR_ROOT (this repository), ZAX_FORMATS (zax-formats), ZAX_PKG_VERSION, ZAX_PKG_ICNS (optional).
 # Only QtCore/QtGui/QtWidgets of PySide6 go in, with the platform/style/image format plugins they need and Qt's own
 # German translation (qtbase_de, the standard buttons); zaxtools comes from zax-formats, the .qm files of zaxeditor/i18n.
+# QtMultimedia (PySide6-Addons) for the model viewer's sound (QAudioSink, zaxeditor/sound.py) without any media backend
+# plugin: QAudioSink works without one (Qt: "No QtMultimedia backends found. Only QMediaDevices, QAudioDevice,
+# QSoundEffect, QAudioSink, and QAudioSource are available."), so FFmpeg (libav*/libsw*, the ffmpeg plugin) and the
+# darwin plugin stay out; the sounds are decoded by soundfile (libsndfile).
 import os
 from pathlib import Path
 
@@ -23,9 +27,9 @@ for pkg_root, name in ((ROOT, 'zaxeditor'), (FORMATS, 'zaxtools')):
         hidden.append('.'.join(parts))
 hidden.append('zax_pkg_smoke')
 
-QT_EXCLUDES = ['PySide6.' + m for m in (
-    'QtNetwork', 'QtQml', 'QtQuick', 'QtQuickWidgets', 'QtOpenGL', 'QtOpenGLWidgets', 'QtSql', 'QtTest', 'QtXml',
-    'QtDBus', 'QtConcurrent', 'QtDesigner', 'QtHelp', 'QtUiTools', 'QtPrintSupport', 'QtMultimedia',
+QT_EXCLUDES = ['PySide6.' + m for m in (     # QtNetwork stays: PySide6.QtMultimedia imports it
+    'QtQml', 'QtQuick', 'QtQuickWidgets', 'QtOpenGL', 'QtOpenGLWidgets', 'QtSql', 'QtTest', 'QtXml',
+    'QtDBus', 'QtConcurrent', 'QtDesigner', 'QtHelp', 'QtUiTools', 'QtPrintSupport',
     'QtMultimediaWidgets', 'QtWebEngineCore', 'QtWebEngineWidgets', 'QtPdf', 'QtSvgWidgets', 'Qt3DCore')]
 
 a = Analysis(
@@ -39,13 +43,24 @@ a = Analysis(
 )
 
 # Qt plugins and translations: keep what a widgets app on macOS uses
-KEEP_PLUGIN_DIRS = {'platforms', 'styles', 'imageformats', 'iconengines'}
+KEEP_PLUGIN_DIRS = {'platforms', 'styles', 'imageformats', 'iconengines'}    # no 'multimedia' (above)
 KEEP_PLATFORMS = {'libqcocoa.dylib', 'libqoffscreen.dylib', 'libqminimal.dylib'}
+# the Qt frameworks the kept modules and plugins link; plugins the filter drops (Addons' virtual keyboard input context,
+# the PDF image format) would otherwise leave QtQml/QtQuick/QtPdf/QtVirtualKeyboard/QtOpenGL behind
+KEEP_FRAMEWORKS = {'QtCore', 'QtGui', 'QtWidgets', 'QtSvg', 'QtDBus', 'QtMultimedia', 'QtNetwork', 'QtConcurrent'}
 KEEP_IMAGEFORMATS = {'libqgif.dylib', 'libqico.dylib', 'libqjpeg.dylib', 'libqsvg.dylib', 'libqicns.dylib'}
 
 
 def keep(dest: str) -> bool:
     p = dest.replace('\\', '/')
+    name = Path(p).name.lower()
+    if name.startswith(('libavcodec', 'libavformat', 'libavutil', 'libavdevice', 'libavfilter', 'libswresample',
+                        'libswscale')) or 'ffmpeg' in name:
+        return False
+    if '/' not in p and p.startswith('Qt'):     # PyInstaller's top-level symlink to a framework
+        return p in KEEP_FRAMEWORKS
+    if '/Qt/lib/' in p and '.framework' in p:
+        return p.split('/Qt/lib/', 1)[1].split('.framework', 1)[0] in KEEP_FRAMEWORKS
     if '/Qt/translations/' in p:
         return Path(p).name in ('qtbase_de.qm',)
     if '/Qt/plugins/' in p:

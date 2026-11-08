@@ -12432,6 +12432,16 @@ never – verfällt (wie CExpireMapAction)</translation>
     </message>
     <message>
         <location filename="../../zaxeditor/viewer.py"/>
+        <source>Sound {path} cannot be played: {error}</source>
+        <translation>Sound {path} kann nicht abgespielt werden: {error}</translation>
+    </message>
+    <message>
+        <location filename="../../zaxeditor/viewer.py"/>
+        <source>Sound output failed: {error}</source>
+        <translation>Tonausgabe fehlgeschlagen: {error}</translation>
+    </message>
+    <message>
+        <location filename="../../zaxeditor/viewer.py"/>
         <source>Sound: {path}</source>
         <translation>Sound: {path}</translation>
     </message>

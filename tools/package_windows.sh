@@ -75,11 +75,14 @@ cp "$STAGE/runtime/LICENSE.txt" "$STAGE/licenses/python/LICENSE.txt"
 cp "$ROOT"/tools/package/licenses/{LGPL-3.0,GPL-3.0}.txt "$STAGE/licenses/pyside6/"
 for d in "$STAGE"/runtime/Lib/site-packages/*.dist-info; do
     pkg=$(basename "$d" | cut -d- -f1 | tr '[:upper:]' '[:lower:]')
-    [[ $pkg == pyside6_essentials || $pkg == shiboken6 ]] && continue   # only a commercial-licence reference: LGPL above
+    [[ $pkg == pyside6_essentials || $pkg == pyside6_addons || $pkg == shiboken6 ]] && continue   # only a commercial-licence reference: LGPL above
     find "$d" -type f \( -iname '*licen*' -o -iname '*copying*' -o -iname '*notice*' \) | while read -r f; do
         mkdir -p "$STAGE/licenses/$pkg"; cp "$f" "$STAGE/licenses/$pkg/"
     done
 done
+# libsndfile's licence (LGPL-2.1), shipped next to the library in the soundfile wheel
+mkdir -p "$STAGE/licenses/soundfile"
+cp "$STAGE/runtime/Lib/site-packages/_soundfile_data/COPYING" "$STAGE/licenses/soundfile/libsndfile-COPYING.txt"
 {
     echo "Zax Editor $VERSION (Windows x64, portable)"
     echo "Python $PY_VERSION (embeddable, python.org)"

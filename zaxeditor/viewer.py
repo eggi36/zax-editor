@@ -19,7 +19,7 @@ import zipfile
 from pathlib import Path
 
 import numpy as np
-from PySide6.QtCore import QElapsedTimer, QPointF, QRectF, QSettings, QStandardPaths, QUrl, Qt, QTimer, Signal
+from PySide6.QtCore import QElapsedTimer, QPointF, QRectF, QSettings, QStandardPaths, Qt, QTimer, Signal
 from PySide6.QtGui import QAction, QActionGroup, QBrush, QColor, QKeySequence, QPainter, QPen, QPolygonF
 from PySide6.QtWidgets import (QApplication, QCheckBox, QComboBox, QDockWidget, QFileDialog, QGridLayout,
                                QHBoxLayout, QLabel, QListWidget, QListWidgetItem, QMainWindow, QSlider,
@@ -942,27 +942,22 @@ class ViewerWindow(QMainWindow):
             self.play_sound(rel)
 
     def play_sound(self, rel: str) -> None:
-        """Play a sound of the game data (copied into the cache folder, QtMultimedia)."""
-        try:
-            from PySide6.QtMultimedia import QAudioOutput, QMediaPlayer
-        except ImportError:
+        """Play a sound of the game data: decoded here, raw PCM through QAudioSink (zaxeditor/sound.py)."""
+        from . import sound
+        if sound.QAudioSink is None:
             self.statusBar().showMessage(translate('viewer', 'Qt Multimedia is not available: no sound.'), 5000)
             return
-        folder = self.cache / 'viewer-sound'
-        folder.mkdir(parents=True, exist_ok=True)
-        f = folder / ('play' + Path(rel).suffix.lower())
         try:
-            f.write_bytes(self.ds.read(rel))
-        except OSError:
+            pcm = sound.decode(self.ds.read(rel))
+        except (OSError, sound.DecodeError) as e:
+            self.statusBar().showMessage(translate('viewer', 'Sound {path} cannot be played: {error}').format(
+                path=rel, error=e), 8000)
             return
         if self._player is None:
-            self._player = QMediaPlayer(self)
-            self._audio = QAudioOutput(self)
-            self._player.setAudioOutput(self._audio)
-        self._player.stop()
-        self._player.setSource(QUrl())
-        self._player.setSource(QUrl.fromLocalFile(str(f)))
-        self._player.play()
+            self._player = sound.Player(self)
+            self._player.failed.connect(lambda err: self.statusBar().showMessage(
+                translate('viewer', 'Sound output failed: {error}').format(error=err), 8000))
+        self._player.play(pcm)
         self.statusBar().showMessage(translate('viewer', 'Sound: {path}').format(path=rel), 4000)
 
     # --- Drawing ------------------------------------------------------------------------------------------

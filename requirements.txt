@@ -2,6 +2,8 @@ numpy>=1.21
 Pillow>=9.0
 # the editor (zaxeditor); zaxtools itself comes from zax-formats next to this repository (ZAX_FORMATS)
 PySide6>=6.5
+# the model viewer's sound: Ogg Vorbis decoding (libsndfile bundled); playback through QtMultimedia's QAudioSink
+soundfile>=0.12
 # only for reading Zax.exe (zaxtools.exeschema)
 capstone>=5.0
 pefile>=2023.2

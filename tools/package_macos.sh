@@ -16,7 +16,9 @@ mkdir -p "$OUT"; OUT=${OUT:A}
 FORMATS=${ZAX_FORMATS:-${ROOT:h}/zax-formats}
 [[ -d $FORMATS/zaxtools ]] || { echo "zaxtools not found in $FORMATS (set ZAX_FORMATS)"; exit 1; }
 PYTHON=${PYTHON:-python3}
-PINS=(pyinstaller==6.22.3 pyside6-essentials==6.10.3 numpy==2.0.2 pillow==11.3.0 capstone==5.0.9 pefile==2024.8.26)
+# pyside6-addons only for QtMultimedia (the spec keeps only that: no media backend, no FFmpeg); soundfile decodes Ogg Vorbis
+PINS=(pyinstaller==6.22.3 pyside6-essentials==6.10.3 pyside6-addons==6.10.3 numpy==2.0.2 pillow==11.3.0 capstone==5.0.9
+      pefile==2024.8.26 soundfile==0.13.1 cffi==2.0.0)
 VERSION=${ZAX_PKG_VERSION:-$(date +%Y.%m.%d)-$(git -C "$ROOT" rev-parse --short HEAD)$(git -C "$ROOT" diff --quiet HEAD -- zaxeditor tools || echo -dirty)}
 NAME=Zax-Editor-$VERSION-macos-arm64
 
@@ -54,7 +56,7 @@ import shutil, sys, sysconfig
 from importlib import metadata
 from pathlib import Path
 venv, out = Path(sys.argv[1]), Path(sys.argv[2])
-for dist in ('PySide6_Essentials', 'shiboken6', 'numpy', 'pillow', 'capstone', 'pefile'):
+for dist in ('PySide6_Essentials', 'shiboken6', 'numpy', 'pillow', 'capstone', 'pefile', 'soundfile', 'cffi'):
     d = metadata.distribution(dist)
     for f in d.files or []:
         n = f.name.lower()
@@ -63,6 +65,10 @@ for dist in ('PySide6_Essentials', 'shiboken6', 'numpy', 'pillow', 'capstone', '
             if src.is_file():
                 (out / dist.lower()).mkdir(exist_ok=True)
                 shutil.copy2(src, out / dist.lower() / src.name)
+# libsndfile's licence (LGPL-2.1), shipped next to the library in the soundfile wheel
+import _soundfile_data
+(out / 'soundfile').mkdir(exist_ok=True)
+shutil.copy2(Path(_soundfile_data.__file__).parent / 'COPYING', out / 'soundfile' / 'libsndfile-COPYING.txt')
 lic = Path(sysconfig.get_paths()['stdlib']) / 'LICENSE.txt'
 (out / 'python').mkdir(exist_ok=True)
 shutil.copy2(lic, out / 'python' / 'LICENSE.txt')

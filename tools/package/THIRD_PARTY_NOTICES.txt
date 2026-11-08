@@ -14,7 +14,8 @@ Python
   bzip2 (BSD-style), xz/liblzma (0BSD/public domain), SQLite (public domain) and mpdecimal (BSD-2-Clause)
   under their own licences; see the Python licence page above.
 
-Qt for Python (PySide6, shiboken6) and Qt 6 (QtCore, QtGui, QtWidgets, QtSvg and their plugins)
+Qt for Python (PySide6, shiboken6) and Qt 6 (QtCore, QtGui, QtWidgets, QtSvg, QtMultimedia, QtNetwork,
+QtConcurrent and their plugins; QtMultimedia without any media backend plugin and without FFmpeg)
   GNU Lesser General Public License v3.0 (LGPL-3.0-only); https://www.gnu.org/licenses/lgpl-3.0.html
   Copyright (C) The Qt Company Ltd. and other contributors.
   Qt and PySide6 are shipped unmodified as separate, dynamically loaded libraries (macOS: the
@@ -41,6 +42,22 @@ Capstone (Python bindings and the capstone library)
 
 pefile
   MIT License. Copyright (c) 2004-2024 Ero Carrera. https://github.com/erocarrera/pefile
+
+python-soundfile (decodes the game's Ogg Vorbis sounds for the model viewer)
+  BSD 3-Clause License. Copyright (c) 2013, Bastian Bechtold. https://github.com/bastibe/python-soundfile
+  It bundles libsndfile as one shared library (macOS: _soundfile_data/libsndfile_arm64.dylib in the app's
+  Frameworks; Windows: runtime\Lib\site-packages\_soundfile_data\libsndfile_x64.dll), loaded at run time.
+  libsndfile: GNU Lesser General Public License v2.1 or later (LGPL-2.1-or-later), Copyright (C) 1999-2023
+  Erik de Castro Lopo and contributors; https://github.com/libsndfile/libsndfile (licence text:
+  licenses/soundfile/libsndfile-COPYING.txt). You may replace that library with your own compatible build.
+  The library is built with (each under its own licence): libogg, libvorbis, libFLAC and libopus
+  (BSD-3-Clause, Xiph.Org Foundation and contributors; https://github.com/xiph), libmpg123 (LGPL-2.1,
+  the mpg123 project; https://www.mpg123.de/) and LAME's libmp3lame (LGPL-2.0-or-later, the LAME project;
+  https://lame.sourceforge.io/). Build scripts and sources: https://github.com/bastibe/libsndfile-binaries
+
+CFFI (the _cffi_backend module python-soundfile uses)
+  MIT License. Copyright (c) 2012-2025 Armin Rigo, Maciej Fijalkowski and the CFFI contributors.
+  https://cffi.readthedocs.io/
 
 The licence texts the components ship are copied into the folder licenses/ next to this file
 (one subfolder per component; Python's own licence as licenses/python/LICENSE.txt, the LGPL-3.0 of

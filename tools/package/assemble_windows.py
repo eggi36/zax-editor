@@ -7,8 +7,9 @@ tools/package_windows.sh; nothing of the downloads is executed, they are only re
 Layout of the stage folder:
     Zax Editor.exe             the starter (tools/package/starter.c)
     runtime\\                   the embeddable Python; python314._pth = the runtime, Lib\\site-packages, ..\\app
-    runtime\\Lib\\site-packages  PySide6 (QtCore/QtGui/QtWidgets, their DLLs and plugins only), shiboken6, numpy,
-                               Pillow, capstone, pefile
+    runtime\\Lib\\site-packages  PySide6 (QtCore/QtGui/QtWidgets, their DLLs and plugins only; QtMultimedia from
+                               PySide6-Addons with QtNetwork, no media backend plugin, no FFmpeg),
+                               shiboken6, numpy, Pillow, capstone, pefile, soundfile (libsndfile), cffi
     app\\                       zaxeditor (with the .qm translations), zaxtools, zax_pkg_smoke.py
 """
 import argparse
@@ -28,6 +29,10 @@ PYSIDE_KEEP = {
     'PySide6/plugins/imageformats/qgif.dll', 'PySide6/plugins/imageformats/qico.dll',
     'PySide6/plugins/imageformats/qjpeg.dll', 'PySide6/plugins/imageformats/qsvg.dll',
     'PySide6/translations/qtbase_de.qm',
+    # the model viewer's sound (QAudioSink, which needs no media backend plugin): never avcodec/avformat/avutil/
+    # swresample/swscale or a plugin of plugins/multimedia (ffmpeg, windows/Media Foundation)
+    'PySide6/QtMultimedia.pyd', 'PySide6/Qt6Multimedia.dll', 'PySide6/Qt6Network.dll',
+    'PySide6/QtNetwork.pyd',     # PySide6.QtMultimedia imports PySide6.QtNetwork
 }
 MSVC = re.compile(r'^(msvcp140(_\d|_codecvt_ids)?|vcruntime140(_1)?|concrt140)\.dll$', re.I)
 
