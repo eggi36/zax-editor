@@ -332,8 +332,8 @@ Nur Löschen reicht nicht: eine ältere Minimap – die mitgelieferte in Data.da
     </message>
     <message>
         <location filename="../../zaxeditor/app.py"/>
-        <source>Play animations</source>
-        <translation>Animationen abspielen</translation>
+        <source>Play animations (CPU intensive)</source>
+        <translation>Animationen abspielen (CPU-intensiv)</translation>
     </message>
     <message>
         <location filename="../../zaxeditor/app.py"/>

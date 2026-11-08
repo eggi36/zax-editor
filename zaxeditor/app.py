@@ -606,8 +606,8 @@ class MainWindow(QMainWindow):
         a_fit = act(m, translate('app', 'Whole level'), self.fit, 'Ctrl+0', icon='fit')
         self.grid_action = act(m, translate('app', 'Ground grid (every 64 pixels)'), self._set_grid, 'G',
                                checkable=True, checked=self.settings.value('grid', False, type=bool))
-        self.anim_action = act(m, translate('app', 'Play animations'), self._set_animate, checkable=True,
-                               checked=self.settings.value('animate', True, type=bool))
+        self.anim_action = act(m, translate('app', 'Play animations (CPU intensive)'), self._set_animate, checkable=True,
+                               checked=self.settings.value('animate', False, type=bool))
         self.children_action = act(m, translate('app', 'Child objects (upper bodies, attached effects and items)'),
                                    self._set_children, checkable=True,
                                    checked=self.settings.value('children', True, type=bool))
