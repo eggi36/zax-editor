@@ -35,7 +35,7 @@ from zaxtools.exeschema import Schema, find_exe
 from zaxtools.modelhead import DecodeError, ModelHead
 from zaxtools.render import Assets
 
-from . import i18n, msgbox
+from . import default_output, i18n, msgbox
 from .i18n import QT_TRANSLATE_NOOP, translate
 from .icons import app_icon, follow_theme, set_icon, style_splitter
 from .props import PropertyPanel
@@ -62,7 +62,7 @@ CUT_COLOR = QColor(0, 230, 255)
 BOUNDS_COLOR = QColor(255, 160, 0)
 BOX_COLOR = QColor(200, 200, 200)
 GREY = QColor(140, 140, 140)
-DEFAULT_OUT = Path(__file__).resolve().parents[2] / 'editor-output'   # the workspace's (next to the repositories; was ~/Documents/Zax-Ausgabe until 2026-11-02)
+DEFAULT_OUT = default_output()   # the workspace's editor-output/ (was ~/Documents/Zax-Ausgabe until 2026-11-02); a package's: zaxeditor.default_output
 
 
 # ---- The view ------------------------------------------------------------------------------------------------

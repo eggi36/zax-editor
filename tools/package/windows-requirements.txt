@@ -1,0 +1,8 @@
+# Wheels of the Windows package (tools/package_windows.sh): pip download --platform win_amd64 --python-version 3.14
+# --only-binary=:all: --require-hashes. The hashes are PyPI's for exactly these files (checked 2026-11-08).
+numpy==2.3.5 --hash=sha256:e6a0bc88393d65807d751a614207b7129a310ca4fe76a74e5c7da5fa5671417e
+pillow==11.3.0 --hash=sha256:a418486160228f64dd9e9efcd132679b7a02a5f22c982c78b6fc7dab3fefb635
+pyside6-essentials==6.10.3 --hash=sha256:051a70e2df79cf1c012a208ad82a98e8de23ca7fe3b0f3344d07152d15705b59
+shiboken6==6.10.3 --hash=sha256:38261c88e87a1c32d1302b642b755470d2369c78af3c7d7d9e95d631f79b556c
+capstone==5.0.9 --hash=sha256:732cedbbb56d42e723f14d7af6387f1454194a820b4b96b56d1e53f865ef85d0
+pefile==2024.8.26 --hash=sha256:76f8b485dcd3b1bb8166f1128d395fa3d87af26360c2358fb75b80019b957c6f

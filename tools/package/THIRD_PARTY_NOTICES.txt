@@ -1,0 +1,47 @@
+Zax Editor - third-party notices
+================================
+
+This package contains the Zax Editor (MIT licence, see LICENSE.txt) and the format library zaxtools
+(zax-formats, MIT), plus the third-party components listed below. It contains nothing of the game
+"Zax: The Alien Hunter": the editor reads your own copy of the game data (DATA.dat, Zax.exe) at run time.
+The exact versions of the bundled components are listed in VERSIONS.txt next to this file.
+
+Python
+  Python Software Foundation License Version 2 (PSF-2.0)
+  Copyright (c) 2001 Python Software Foundation; All Rights Reserved.
+  https://docs.python.org/3/license.html
+  The Python runtime also bundles OpenSSL (Apache-2.0), libffi (MIT), zlib (zlib), expat (MIT),
+  bzip2 (BSD-style), xz/liblzma (0BSD/public domain), SQLite (public domain) and mpdecimal (BSD-2-Clause)
+  under their own licences; see the Python licence page above.
+
+Qt for Python (PySide6, shiboken6) and Qt 6 (QtCore, QtGui, QtWidgets, QtSvg and their plugins)
+  GNU Lesser General Public License v3.0 (LGPL-3.0-only); https://www.gnu.org/licenses/lgpl-3.0.html
+  Copyright (C) The Qt Company Ltd. and other contributors.
+  Qt and PySide6 are shipped unmodified as separate, dynamically loaded libraries (macOS: the
+  Qt libraries and PySide6 modules inside the app bundle (Contents/Frameworks/PySide6);
+  Windows: runtime\Lib\site-packages\PySide6 and shiboken6). You may replace them with your own
+  compatible build of the same version. Source code: https://download.qt.io/official_releases/qt/ and
+  https://download.qt.io/official_releases/QtForPython/ (or ask the distributor of this package).
+  Qt bundles third-party code under its own licences (e.g. Freetype, HarfBuzz, libjpeg, libpng, PCRE2,
+  zlib, md4c, Unicode data); see https://doc.qt.io/qt-6/licenses-used-in-qt.html
+
+NumPy
+  BSD 3-Clause License. Copyright (c) 2005-2025, NumPy Developers. https://numpy.org/
+  Wheels bundle OpenBLAS (BSD-3-Clause) and, on Windows, the GCC runtime libraries (GPL-3.0 with the
+  GCC Runtime Library Exception).
+
+Pillow
+  MIT-CMU (HPND) License. Copyright (c) 1997-2011 by Secret Labs AB, (c) 1995-2011 by Fredrik Lundh and
+  contributors, (c) 2010 by Jeffrey A. Clark and contributors. https://python-pillow.org/
+  Wheels bundle libjpeg-turbo, libpng, libtiff, libwebp, openjpeg, freetype, lcms2, zlib, brotli, xz,
+  harfbuzz, fribidi and others under their own permissive licences.
+
+Capstone (Python bindings and the capstone library)
+  BSD 3-Clause License. Copyright (c) 2013, COSEINC. https://www.capstone-engine.org/
+
+pefile
+  MIT License. Copyright (c) 2004-2024 Ero Carrera. https://github.com/erocarrera/pefile
+
+The licence texts the components ship are copied into the folder licenses/ next to this file
+(one subfolder per component; Python's own licence as licenses/python/LICENSE.txt, the LGPL-3.0 of
+Qt/PySide6 and the GPL-3.0 it builds on in licenses/pyside6/).

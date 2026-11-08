@@ -140,6 +140,11 @@ zaxeditor/         desktop editor (PySide6), start: python -m zaxeditor ["Levels
                    update.py: python -m zaxeditor.i18n.update [--new CODE] extracts the texts (ast) and compiles
 tools/             (selftest_ui.py here, the rest in zax-formats since 2026-11-07)
   selftest_ui.py   section 9 of the self-test: the UI translations (.ts complete, .qm current, no German literal)
+  package_macos.sh / package_windows.sh   test packages (README "Packages"): the macOS app (PyInstaller, ad hoc
+                   signed) and the portable Windows folder (embeddable Python + wheels, assembled on the Mac); their
+                   parts in package/ (spec, starter.c, assemble_windows.py, notices, zax_pkg_smoke.py: smoke test with
+                   its own settings name). A package defaults its output to Documents/Zax-Editor-Output
+                   (zaxeditor.default_output)
   selftest.py      regression test against the real data (zax-formats; sections 1-8)
   render_level.py  level as PNG (--polygons: collision/way point outlines, --overlays: AI overlays, --time)
   export_model.py  model as a sprite sheet (preview.sprite_sheet, like the viewer's export)

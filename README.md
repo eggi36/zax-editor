@@ -24,6 +24,15 @@ It is built on **zaxtools** from [zax-formats](../zax-formats) (every file forma
 
 The game data is not included and must never go into the repository: every player brings the original assets from their own copy. The editor saves into its own output folder, never into the game data.
 
+## Packages
+
+Ready-to-run builds that need no Python installation; at the first start they ask for the game data (`Data.dat`) of your own copy, nothing of the game is in them. A package saves into `Documents/Zax-Editor-Output` until another output folder is chosen.
+
+- **macOS (Apple silicon):** `tools/package_macos.sh OUT_DIR` builds `Zax Editor.app` with PyInstaller (a build venv in `OUT_DIR` with pinned versions; QtCore/QtGui/QtWidgets only, zaxtools from zax-formats, the translations) and zips it as `Zax-Editor-<version>-macos-arm64.zip`. The app is signed ad hoc only: after a download, open it once with right-click → Open (or `xattr -dr com.apple.quarantine "Zax Editor.app"`).
+- **Windows (x64):** `tools/package_windows.sh OUT_DIR` builds a portable folder on the Mac, without Windows: the official embeddable Python of python.org and the win_amd64 wheels of `tools/package/windows-requirements.txt` (both hash-checked, only unpacked), filtered to what the editor uses, started by `Zax Editor.exe`, a small native starter (`tools/package/starter.c`, zig). Unzip the whole `Zax-Editor-<version>-windows-x64.zip` and start `Zax Editor.exe`; the exe is unsigned, so SmartScreen may ask once (More info → Run anyway).
+
+Each package carries `THIRD_PARTY_NOTICES.txt`, the licence texts of the bundled parts (`licenses/`: Python PSF, PySide6/Qt LGPL-3.0 as separate replaceable libraries, numpy BSD, Pillow HPND, capstone BSD, pefile MIT) and `VERSIONS.txt`. `tools/package/zax_pkg_smoke.py` is the packages' smoke test (own settings, a level opened, a screenshot of the window).
+
 ## Licence
 
 MIT (`LICENSE`). The editor uses PySide6 (Qt for Python, LGPL-3.0), which is installed separately and not part of this repository. This licence covers only the project's own code and documentation. It grants no right to "Zax: The Alien Hunter" itself: the game, its executable, data, texts, names and artwork belong to their rights holders, are not included, and every player brings them from their own copy.

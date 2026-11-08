@@ -30,7 +30,7 @@ from zaxtools import children as childlist
 from zaxtools import levelcheck
 from zaxtools import rules as rules_txt
 
-from . import i18n, macos, msgbox
+from . import default_output, i18n, macos, msgbox
 from .i18n import QT_TRANSLATE_NOOP, translate
 from .models import MIME, ModelBrowser
 from .parts import AddPartsCommand, ChildListCommand, NodeFieldsCommand, RemovePartsCommand, anchor, copies
@@ -53,7 +53,7 @@ from .surfacedlg import SurfaceDialog, surface_entries
 from .scene import POLY_COLORS, ChildItem, DrawItem, MapScene, MoveCommand, PolyItem, SpriteCache
 
 APP = 'Zax-Editor'
-DEFAULT_OUT = Path(__file__).resolve().parents[2] / 'editor-output'   # the workspace's (next to the repositories; was ~/Documents/Zax-Ausgabe until 2026-11-02)
+DEFAULT_OUT = default_output()   # the workspace's editor-output/ (was ~/Documents/Zax-Ausgabe until 2026-11-02); a package's: zaxeditor.default_output
 REBUILD_KEYS = {'Model', 'Cur Sequence', 'Current Frame', 'Visible', 'Active', 'Position X', 'Position Y', 'Polygon', 'Start FacingAngle', 'Movement Angle', 'Aiming Angle', 'Facing Backwards',
                 'Rendering Height', 'Rendering Height Float'}
 SHARP_FROM = 1          # screen pixels per world pixel from which the map is drawn with sharp pixels
