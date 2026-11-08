@@ -620,13 +620,18 @@ Bitte den Ordner „Data“ oder die Data.dat des Spiels wählen.</translation>
     </message>
     <message>
         <location filename="../../zaxeditor/app.py"/>
-        <source>Building the model catalogue once …</source>
-        <translation>Modellkatalog wird einmalig erstellt …</translation>
+        <source>Model catalogue ready.</source>
+        <translation>Modellkatalog fertig.</translation>
     </message>
     <message>
         <location filename="../../zaxeditor/app.py"/>
-        <source>Building the model catalogue once: {text}</source>
-        <translation>Modellkatalog wird einmalig erstellt: {text}</translation>
+        <source>The model catalogue could not be built: {error}</source>
+        <translation>Der Modellkatalog konnte nicht erstellt werden: {error}</translation>
+    </message>
+    <message>
+        <location filename="../../zaxeditor/app.py"/>
+        <source>Building the model catalogue once ({percent} %): {text}</source>
+        <translation>Modellkatalog wird einmalig erstellt ({percent} %): {text}</translation>
     </message>
     <message>
         <location filename="../../zaxeditor/app.py"/>
@@ -649,6 +654,11 @@ Bitte den Ordner „Data“ oder die Data.dat des Spiels wählen.</translation>
 It reads the game data and never writes into it.</source>
         <translation>Level-Editor für das Spiel „Zax: The Alien Hunter“ (2001).
 Er liest die Spieldaten und schreibt nie hinein.</translation>
+    </message>
+    <message>
+        <location filename="../../zaxeditor/app.py"/>
+        <source>The model catalogue is still being built …</source>
+        <translation>Der Modellkatalog wird noch erstellt …</translation>
     </message>
     <message>
         <location filename="../../zaxeditor/app.py"/>

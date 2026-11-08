@@ -13,7 +13,7 @@ from PySide6.QtCore import (QEvent, QPointF, QRectF, QSize, QSettings, QStandard
 from PySide6.QtGui import QAction, QActionGroup, QBrush, QColor, QCursor, QKeySequence, QPainter, QUndoStack
 from PySide6.QtWidgets import (QApplication, QDialog, QDialogButtonBox, QDockWidget, QFileDialog,
                                QGraphicsView, QInputDialog, QLineEdit, QListWidget, QMainWindow, QMessageBox,
-                               QMenu, QPinchGesture, QProgressDialog, QToolBar,
+                               QMenu, QPinchGesture, QToolBar,
                                QTreeWidget, QTreeWidgetItem, QVBoxLayout, QWidget)
 
 from zaxtools.datasource import DataSource
@@ -351,6 +351,7 @@ class MainWindow(QMainWindow):
     def __init__(self):
         super().__init__()
         self.settings = QSettings(APP, APP)
+        QApplication.instance().applicationStateChanged.connect(self._pause_animations)
         self.ds: DataSource | None = None
         self.assets: Assets | None = None
         self.sprites: SpriteCache | None = None
@@ -395,6 +396,7 @@ class MainWindow(QMainWindow):
         self._settings_dlg = None                       # File -> Settings (zaxeditor.settingsdlg)
         self._output_asked = False                      # a package asked for its output folder in this session
         self._usage_job = None                          # the background analysis of the models' use (zaxtools.usage)
+        self._catalog_job = None                        # the catalogue built in the background (_load_catalog)
         self.models_dock = QDockWidget(translate('app', 'Models'), self)
         self.models_dock.setObjectName('models')
         self.models_dock.setWidget(self.models)
@@ -806,26 +808,50 @@ class MainWindow(QMainWindow):
         return Path(QStandardPaths.writableLocation(QStandardPaths.GenericCacheLocation)) / APP
 
     def _load_catalog(self) -> None:
-        """Model catalogue from the cache, rebuilt the first time (a few seconds)."""
-        dlg = None
+        """Model catalogue and exe schema: from the cache at once; the first time (or after the game data or the exe
+        changed, about 40 s) built in a background thread while the window stays usable - the status bar shows the
+        progress, the model browser and placing objects wait for it (``_catalog_ready``)."""
+        ds, cache, exe = self.ds, self.cache_dir(), self.exe_path()
+        job: dict = {}
+        self._catalog_job = job
+        cached = Catalog.cached(ds, cache, exe)
+        if cached is not None:
+            self._catalog_ready(cached, self._open_schema())
+            return
+        self.catalog = None
+        self.models.set_usage(None)
 
         def progress(i, n, text):
-            nonlocal dlg
-            if dlg is None:
-                dlg = QProgressDialog(translate('app', 'Building the model catalogue once …'), None, 0, n, self)
-                dlg.setWindowModality(Qt.WindowModal)
-                dlg.setMinimumDuration(0)
-            dlg.setLabelText(translate('app', 'Building the model catalogue once: {text}').format(text=text))
-            dlg.setValue(i)
-            QApplication.processEvents()
-        QApplication.setOverrideCursor(Qt.WaitCursor)
-        try:
-            self.catalog = Catalog.open(self.ds, self.cache_dir(), progress, exe=self.exe_path())
-        finally:
-            QApplication.restoreOverrideCursor()
-            if dlg is not None:
-                dlg.close()
-        self.props.schema = self._open_schema()
+            job['progress'] = (i, n, text)
+
+        def work():
+            try:
+                cat = Catalog.open(ds, cache, progress, exe=exe)
+                schema = Schema.open(exe, ds, cache) if exe is not None else None
+                job['result'] = (cat, schema)
+            except Exception as e:          # noqa: BLE001 - shown in the status bar
+                job['error'] = e
+
+        def poll():
+            if self._catalog_job is not job:        # other game data or exe in the meantime
+                return
+            if 'result' in job:
+                self.statusBar().showMessage(translate('app', 'Model catalogue ready.'), 4000)
+                self._catalog_ready(*job['result'])
+            elif 'error' in job:
+                self.statusBar().showMessage(translate('app', 'The model catalogue could not be built: {error}').format(
+                    error=job['error']), 10000)
+            else:
+                i, n, text = job.get('progress', (0, 1, ''))
+                self.statusBar().showMessage(translate('app', 'Building the model catalogue once ({percent} %): {text}')
+                                             .format(percent=100 * i // max(1, n), text=text))
+                QTimer.singleShot(250, poll)
+        threading.Thread(target=work, name='catalogue', daemon=True).start()
+        QTimer.singleShot(250, poll)
+
+    def _catalog_ready(self, catalog: Catalog, schema: Schema | None) -> None:
+        self.catalog = catalog
+        self.props.schema = schema
         self.assets.own_roots = self.output_roots()
         if self.output_dir() is not None:
             self.catalog.add_own(self.output_dir(), self.props.schema)
@@ -912,6 +938,9 @@ class MainWindow(QMainWindow):
         if self.data_source() is None:
             return
         from .viewer import ViewerWindow
+        if self.catalog is None:
+            self.statusBar().showMessage(translate('app', 'The model catalogue is still being built …'), 4000)
+            return
         if self._viewer is None:
             self._viewer = ViewerWindow(self.ds, self.catalog, self.props.schema, self.cache_dir(), self.exe_path())
         self._viewer.show()
@@ -1125,7 +1154,10 @@ class MainWindow(QMainWindow):
             QApplication.restoreOverrideCursor()
         self.overlay.clear()
         self.ai_overlay.clear()
+        if self.scene is not None:
+            self.scene.shutdown()           # the former level's ground thread
         self.level, self.scene, self.source = level, scene, source
+        self._pause_animations()
         self._links = None
         self.start_level = None
         self.undo.clear()
@@ -2150,6 +2182,16 @@ class MainWindow(QMainWindow):
         self.settings.setValue('children', on)
         if self.scene:
             self.scene.set_show_children(on)
+
+    def changeEvent(self, e):
+        if e.type() == QEvent.WindowStateChange:
+            self._pause_animations()
+        super().changeEvent(e)
+
+    def _pause_animations(self, *_) -> None:
+        """Animations rest while the editor is not the active application or its window is minimised."""
+        if getattr(self, 'scene', None) is not None:
+            self.scene.set_paused(QApplication.applicationState() != Qt.ApplicationActive or self.isMinimized())
 
     def _set_animate(self, on: bool) -> None:
         self.settings.setValue('animate', on)

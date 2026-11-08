@@ -11,30 +11,37 @@ Polygons (CRenderablePolygon) are drawn by a ``SurfaceItem`` - texture tiled, bl
 (one shared clock of the scene), sorted in as in the game by bottom edge + "YSort" (On Ground=1
 between shadows and ground layers, otherwise between the objects); the outline (``PolyItem``) can
 be shown and hidden separately.
+The ground comes in tiles from a background thread (``GroundTiles``, the visible part first); animated items are
+redrawn only when their frame changes (``MapScene._animate``).
 """
 from __future__ import annotations
 
+import copy
+import heapq
 import math
+import os
 import threading
 import time
+import weakref
 
 import numpy as np
-from PySide6.QtCore import QPointF, QRectF, Qt, QTimer, Signal
+from PySide6.QtCore import QObject, QPointF, QRectF, Qt, QTimer, Signal
 from PySide6.QtGui import (QBrush, QColor, QImage, QPainter, QPainterPath, QPen, QPixmap,
                            QPolygonF, QRegion, QUndoCommand)
-from PySide6.QtWidgets import (QGraphicsItem, QGraphicsPathItem, QGraphicsPixmapItem,
+from PySide6.QtWidgets import (QGraphicsItem, QGraphicsPathItem,
                                QGraphicsPolygonItem, QGraphicsRectItem, QGraphicsScene, QMenu,
                                QStyle)
 
 from zaxtools import anim, children
 from zaxtools.level import Level, LevelPart
-from zaxtools.render import EDITOR_PREFIX, Assets, on_ground, render_ground, surface_kind
+from zaxtools.render import EDITOR_PREFIX, Assets, Ground, on_ground, surface_kind
 
 from . import polyedit
 from .i18n import translate
 
-GROUND_STEP = 2          # render the ground at half resolution first and scale it up
+GROUND_STEP = 2          # the ground at half resolution, scaled up, while zoomed out
 GROUND_DETAIL = 0.5      # from this many screen pixels per world pixel on, show the full-resolution ground
+GROUND_TILE = 512        # world pixels per side of a ground tile (GroundTiles), at both resolutions
 Z_GROUND = -2e7
 Z_LOW = -1e7             # shadows, ground layers and polygons with On Ground=1 (+ sort key)
 Z_LOW_MOVING = -5e6      # ground layers of objects that do not rest: above all resting ones (zaxtools.anim)
@@ -64,7 +71,8 @@ class Clock:
 
 
 CLOCK = Clock()
-ANIM_INTERVAL = 50       # ms between two frames of the map while models are animated
+ANIM_MAX_FPS = int(os.environ.get('ZAX_EDITOR_ANIM_FPS') or 20)   # wake-ups per second at most (MapScene._animate),
+#                         the former fixed repaint rate: no frame later than before
 SCROLL_MARGIN = 256      # room for scrolling around the level (pixels)
 
 
@@ -280,6 +288,7 @@ class PartItem(QGraphicsItem):
         if self._rect.isEmpty():
             m = self.MARKER
             self._rect = QRectF(-m, -m, 2 * m, 2 * m)
+        self._bound = self._rect.adjusted(-2, -2, 2, 2)
         self.setFlags(QGraphicsItem.ItemIsSelectable | QGraphicsItem.ItemIsMovable
                       | QGraphicsItem.ItemSendsGeometryChanges)
         if not part.drawn_in_game:
@@ -321,9 +330,44 @@ class PartItem(QGraphicsItem):
             out += [c] + c.companions()
         return out
 
+    def frame_sequence(self):
+        """The mdl.Sequence the entity's frame index counts in."""
+        return self.current
+
     def frame_state(self) -> tuple[anim.PartAnim | None, int]:
         """The object's animation and its entity frame index at the clock."""
-        return self.anim, anim.frame_index(self.anim, self.current, CLOCK.t) if self.anim else 0
+        return self.anim, anim.frame_index(self.anim, self.frame_sequence(), CLOCK.t) if self.anim else 0
+
+    # --- animation (MapScene._animate) ----------------------------------------------
+    def frame_signature(self) -> tuple:
+        """What the item and its layer items show at the clock: the frame index and every layer's image."""
+        a, fi = self.frame_state()
+        return fi, tuple(s.index(a, fi) for s in self.low + self.main)
+
+    def next_change(self, t: float) -> float:
+        """The first time after ``t`` at which ``frame_signature`` can change (zaxtools.anim)."""
+        a = self.anim
+        if a is None:
+            return math.inf
+        n = anim.entity_next(a, self.frame_sequence(), t)
+        for s in self.low + self.main:
+            if s.seq is not None:
+                n = min(n, anim.layer_next(s.seq, a, t))
+        return n
+
+    def redraw_frame(self) -> None:
+        """Repaint the item and its layer items (not the child objects: they are animated on their own)."""
+        self.update()
+        for it in (self.low_item, self.low_moving_item, *self.piece_items):
+            if it is not None:
+                it.update()
+
+    def anim_rect(self) -> QRectF:
+        r = self.sceneBoundingRect()
+        for it in (self.low_item, self.low_moving_item, *self.piece_items):
+            if it is not None:
+                r = r.united(it.sceneBoundingRect())
+        return r
 
     def shift_model(self, dx: float, dy: float) -> None:
         self.part.shift(dx, dy)
@@ -331,7 +375,7 @@ class PartItem(QGraphicsItem):
 
     # --- QGraphicsItem --------------------------------------------------------
     def boundingRect(self):
-        return self._rect.adjusted(-2, -2, 2, 2)
+        return self._bound
 
     def shape(self):
         if self._shape is None:
@@ -451,12 +495,12 @@ class ChildItem(PartItem):
             it.setPos(it.pos() + d)
             it.setZValue(it.zValue() + d.y())
 
-    def frame_state(self) -> tuple[anim.PartAnim | None, int]:
+    def frame_sequence(self):
         if self.anim is not None and self.owner.anim is not None and self.anim.frame == self.owner.anim.frame \
                 and self.anim.loop is self.owner.anim.loop:
             # an upper body: the parent's frame index (CSameAsParentAI) in its own sequence
-            return self.anim, anim.frame_index(self.anim, self.current or self.owner.current, CLOCK.t)
-        return super().frame_state()
+            return self.current or self.owner.current
+        return self.current
 
 
 class SurfaceCache:
@@ -524,9 +568,21 @@ class SurfaceItem(QGraphicsPolygonItem):
             self._sort()
         return super().itemChange(change, value)
 
-    def tick(self, seconds: float) -> None:
-        if len(self.frames) > 1:
-            self.setBrush(QBrush(self.frames[int(seconds * self.fps) % len(self.frames)]))
+    @property
+    def animated(self) -> bool:
+        return len(self.frames) > 1
+
+    def frame_signature(self, seconds: float) -> int:
+        return int(seconds * self.fps) % len(self.frames)
+
+    def next_change(self, seconds: float) -> float:
+        return (math.floor(seconds * self.fps) + 1) / self.fps + 1e-6 if self.fps > 0 else math.inf
+
+    def redraw_frame(self, index: int) -> None:
+        self.setBrush(QBrush(self.frames[index]))
+
+    def anim_rect(self) -> QRectF:
+        return self.sceneBoundingRect()
 
 
 class PolyItem(QGraphicsPolygonItem):
@@ -706,6 +762,258 @@ class DrawItem(QGraphicsPathItem):
         self.setPath(path)
 
 
+class GroundLayer(QGraphicsItem):
+    """One resolution of the ground: an image of the whole level drawn like a QGraphicsPixmapItem (scaled by
+    its step), painted into in place as tiles arrive (a pixmap shared with an item would be copied whole on
+    every tile)."""
+
+    def __init__(self, step: int):
+        super().__init__()
+        self.image = QImage()
+        self.smooth = True
+        self.setScale(step)
+        self.setAcceptedMouseButtons(Qt.NoButton)
+
+    def set_image(self, image: QImage) -> None:
+        self.prepareGeometryChange()
+        self.image = image
+
+    def boundingRect(self) -> QRectF:
+        return QRectF(0, 0, self.image.width(), self.image.height())
+
+    def paint(self, painter, option, widget=None):
+        painter.setRenderHint(QPainter.SmoothPixmapTransform, self.smooth)
+        painter.drawImage(QPointF(0, 0), self.image)
+
+
+class GroundTiles(QObject):
+    """The ground at half (GROUND_STEP) and full resolution, each one image of the whole level (``GroundLayer``,
+    drawn as the former pixmap item), filled in tiles of GROUND_TILE world pixels that ``zaxtools.render.Ground``
+    computes in a background thread: the visible tiles first (nearest to the middle of the view first), then
+    the rest at half resolution; the full resolution (its pixmap made on first use) only for the visible tiles
+    and their neighbours once the view is zoomed in. The full-resolution item lies above the half-resolution
+    one, so a tile not computed yet shows the half resolution. Every tile is the same pixels as the whole
+    level rendered at once (its sample grid is the level's). Painting the ground (``update``) redraws the
+    touched part of the computed tiles at once and marks the tiles so that a result computed from the former
+    grid is thrown away; ``redraw`` (texture list, Shift+F5) recomputes everything, showing the former
+    pixels until the new ones arrive."""
+
+    _ready = Signal(object)     # (generation, key, version, RGBX words) from the worker thread
+
+    def __init__(self, scene: 'MapScene'):
+        super().__init__()
+        self.scene_ref = weakref.ref(scene)
+        self.level, self.assets = scene.level, scene.assets
+        self.size = scene.level.size
+        self.items: dict[int, GroundLayer] = {}
+        for step, z in ((GROUND_STEP, Z_GROUND), (1, Z_GROUND + 1)):
+            it = GroundLayer(step)
+            it.setZValue(z)
+            it.setVisible(step == GROUND_STEP)
+            scene.addItem(it)
+            self.items[step] = it
+        self.images: dict[int, QImage] = {}
+        self.done: set = set()                  # (step, tx, ty) computed for the current generation
+        self.versions: dict = {}                # key -> painting count (results of older ones are dropped)
+        self.gen = 0
+        self.ground: Ground | None = None
+        self.step = GROUND_STEP                 # the resolution shown
+        self._view = None                       # (step, visible rect) of the last ``want``
+        self.view_center = (0.0, 0.0)
+        self._cond = threading.Condition()
+        self._high: list = []                   # wanted now (visible), in order
+        self._low: list = []                    # the rest at half resolution
+        self._busy: set = set()                 # handed to the worker, not back yet
+        self._warm = False
+        self._stop = False
+        self._ready.connect(self._arrived)
+        self._thread = threading.Thread(target=_ground_worker, args=(weakref.ref(self), self._cond),
+                                        name='ground', daemon=True)
+        self._thread.start()
+
+    # --- main thread ------------------------------------------------------------
+    def redraw(self) -> None:
+        """Recompute every tile (new texture list, Blending, size): the former pixels stay visible meanwhile."""
+        ground = Ground(self.level, self.assets)        # raises like render_ground (no texture)
+        with self._cond:
+            self.gen += 1
+            self.ground = ground
+            if self.size != self.level.size or not self.images:
+                self.size = self.level.size
+                self.images = {}
+                self._image_of(GROUND_STEP)
+                self.items[1].set_image(QImage())
+            self.done, self.versions, self._busy = set(), {}, set()
+            self._warm = True                   # the plasma of the whole level in one go first (much faster)
+            self._high = []
+            self._low = self._order(self._keys(GROUND_STEP, (0, 0, *self.size)))
+            self._view = None
+            self._cond.notify()
+        for it in self.items.values():
+            it.update()
+
+    def _image_of(self, step: int) -> QImage:
+        if step not in self.images:
+            W, H = self.size
+            img = QImage(max(1, -(-W // step)), max(1, -(-H // step)), QImage.Format_ARGB32_Premultiplied)
+            img.fill(Qt.transparent)
+            self.images[step] = img
+            self.items[step].set_image(img)
+        return self.images[step]
+
+    def update(self, box) -> None:
+        """The grid changed inside the world area box=(x0, y0, x1, y1) (ground painting, undo)."""
+        if self.ground is None:
+            return
+        g = copy.copy(self.ground)
+        g.refresh_grid(self.level)
+        W, H = self.size
+        with self._cond:
+            self.ground = g
+            keys = [k for s in self.images for k in self._keys(s, box)]
+            for k in keys:
+                self.versions[k] = self.versions.get(k, 0) + 1
+        for s in list(self.images):
+            done = [k for k in keys if k[0] == s and k in self.done]
+            if not done:
+                continue
+            p = QPainter(self.images[s])
+            p.setCompositionMode(QPainter.CompositionMode_Source)
+            for _, tx, ty in done:          # only computed tiles: the others come from the worker
+                x0 = max(tx * GROUND_TILE, int(box[0]) // s * s)
+                y0 = max(ty * GROUND_TILE, int(box[1]) // s * s)
+                x1 = min((tx + 1) * GROUND_TILE, W, int(box[2]))
+                y1 = min((ty + 1) * GROUND_TILE, H, int(box[3]))
+                if x1 > x0 and y1 > y0:
+                    p.drawImage(x0 // s, y0 // s, _image(g.rgbx((x0, y0, x1, y1), s)))
+            p.end()
+            self.items[s].update(QRectF(box[0] / s - 1, box[1] / s - 1, (box[2] - box[0]) / s + 2,
+                                        (box[3] - box[1]) / s + 2))
+
+    def want(self, step: int, rect: QRectF, center: QPointF) -> None:
+        """The view shows ``rect`` (scene coordinates) at ``step``: hand its missing tiles to the worker first."""
+        view = (step, rect.left(), rect.top(), rect.right(), rect.bottom())
+        if step != self.step:
+            self.step = step
+            self.items[1].setVisible(step == 1)
+        if view == self._view or self.ground is None:
+            self._cover()
+            return
+        self._view = view
+        self.view_center = (center.x(), center.y())
+        box = (rect.left(), rect.top(), rect.right() + 1, rect.bottom() + 1)
+        want = self._order(self._keys(step, box))
+        if step == 1:                   # and the neighbours at full resolution
+            ring = (rect.left() - GROUND_TILE, rect.top() - GROUND_TILE, rect.right() + GROUND_TILE,
+                    rect.bottom() + GROUND_TILE)
+            want += [k for k in self._order(self._keys(1, ring)) if k not in set(want)]
+            self._image_of(1)
+        with self._cond:
+            self._high = [k for k in want if k not in self.done and k not in self._busy]
+            if step != 1:               # nearer ones first for the rest too
+                self._low = self._order(self._low)
+            self._cond.notify()
+        self._cover()
+
+    def _cover(self) -> None:
+        """Hide the half resolution while the full one covers the whole view (it is drawn below it)."""
+        covered = False
+        if self.step == 1 and self._view is not None:
+            _, x0, y0, x1, y1 = self._view
+            covered = all(k in self.done for k in self._keys(1, (x0, y0, x1 + 1, y1 + 1)))
+        self.items[GROUND_STEP].setVisible(not covered)
+
+    def stop(self) -> None:
+        with self._cond:
+            self._stop = True
+            self._cond.notify()
+
+    def _keys(self, step: int, box) -> list:
+        W, H = self.size
+        x0, y0 = max(0, int(box[0]) // GROUND_TILE), max(0, int(box[1]) // GROUND_TILE)
+        x1 = min(-(-W // GROUND_TILE), int(math.ceil(box[2] / GROUND_TILE)))
+        y1 = min(-(-H // GROUND_TILE), int(math.ceil(box[3] / GROUND_TILE)))
+        return [(step, tx, ty) for ty in range(y0, y1) for tx in range(x0, x1)]
+
+    def _order(self, keys: list) -> list:
+        cx, cy = self.view_center
+        return sorted(keys, key=lambda k: ((k[1] + 0.5) * GROUND_TILE - cx) ** 2 + ((k[2] + 0.5) * GROUND_TILE - cy) ** 2)
+
+    def _arrived(self, result) -> None:
+        gen, key, version, words = result
+        with self._cond:
+            self._busy.discard(key)
+            current = gen == self.gen and version == self.versions.get(key, 0) and words is not None
+            if not current and gen == self.gen:
+                self._high.insert(0, key)           # computed from a former grid: once more
+                self._cond.notify()
+        if not current:
+            return
+        s, tx, ty = key
+        p = QPainter(self._image_of(s))
+        p.setCompositionMode(QPainter.CompositionMode_Source)
+        p.drawImage(tx * GROUND_TILE // s, ty * GROUND_TILE // s, _image(words))
+        p.end()
+        self.items[s].update(QRectF(tx * GROUND_TILE / s, ty * GROUND_TILE / s, words.shape[1], words.shape[0]))
+        self.done.add(key)
+        if s == 1:
+            self._cover()
+
+    # --- worker thread (with the lock held) -------------------------------------
+    def _next_job(self):
+        if self._warm and self.ground is not None:
+            self._warm = False
+            return None, None, None, self.ground, self.size
+        for queue in (self._high, self._low):
+            while queue:
+                k = queue.pop(0)
+                if k in self.done or k in self._busy:
+                    continue
+                self._busy.add(k)
+                return self.gen, k, self.versions.get(k, 0), self.ground, self.size
+        return None
+
+
+def _image(rgbx: np.ndarray) -> QImage:
+    a = np.ascontiguousarray(rgbx)
+    h, w = a.shape[:2]
+    return QImage(a.data, w, h, a.strides[0], QImage.Format_RGBX8888).copy()
+
+
+def _ground_worker(ref, cond: threading.Condition) -> None:
+    """The ground tiles' thread: computes what ``GroundTiles._next_job`` hands out; ends with its owner."""
+    while True:
+        with cond:
+            while True:
+                owner = ref()
+                if owner is None or owner._stop:
+                    return
+                job = owner._next_job()
+                if job is not None:
+                    break
+                del owner
+                cond.wait(1.0)
+        gen, key, version, ground, (W, H) = job
+        if key is None:
+            try:
+                ground.warm((0, 0, W, H))
+            except Exception:   # noqa: BLE001 - the tiles meet it again
+                pass
+            del owner
+            continue
+        s, tx, ty = key
+        box = (tx * GROUND_TILE, ty * GROUND_TILE, min(W, (tx + 1) * GROUND_TILE), min(H, (ty + 1) * GROUND_TILE))
+        try:
+            words = ground.rgbx(box, s)
+        except Exception:       # noqa: BLE001 - a broken grid: the tile stays empty, as the whole ground did
+            words = None
+        try:
+            owner._ready.emit((gen, key, version, words))
+        except RuntimeError:    # the scene is gone
+            return
+        del owner
+
+
 class MoveCommand(QUndoCommand):
     """Holds the parts, not the items: items can be rebuilt in between."""
 
@@ -727,8 +1035,6 @@ class MoveCommand(QUndoCommand):
 
 
 class MapScene(QGraphicsScene):
-    _ground_ready = Signal(int, object)     # (job, full-resolution image) from the background thread
-
     def __init__(self, level: Level, assets: Assets, sprites: SpriteCache):
         super().__init__()
         self.level, self.assets, self.sprites = level, assets, sprites
@@ -740,23 +1046,21 @@ class MapScene(QGraphicsScene):
         margin.setAcceptedMouseButtons(Qt.NoButton)
         self.addItem(margin)
         self.setBackgroundBrush(QColor(20, 20, 20))
-        self.ground = QGraphicsPixmapItem()
-        self.ground.setZValue(Z_GROUND)
-        self.ground.setScale(GROUND_STEP)
-        self.ground.setTransformationMode(Qt.SmoothTransformation)
-        self.ground.setAcceptedMouseButtons(Qt.NoButton)
-        self.addItem(self.ground)
-        # the ground at both resolutions: half at once, full from a background thread (render_ground);
-        # the view picks one by its zoom (set_detail)
-        self._grounds: dict[int, QPixmap] = {}
-        self._ground_job = 0
-        self._ground_dirty: list | None = None      # boxes painted while the full ground is computed
+        self.ground_tiles = GroundTiles(self)
         self._detail = False
-        self._ground_ready.connect(self._full_ground_ready)
+        self._smooth = True
         self.surfaces = SurfaceCache(assets)
         self._clock = time.monotonic()
-        self.anim_timer = QTimer(self)      # clock of the animated polygons
+        # redraws an animated item when its frame changes (MapScene._animate)
+        self.anim_timer = QTimer(self)
+        self.anim_timer.setSingleShot(True)
+        self.anim_timer.setTimerType(Qt.PreciseTimer)
         self.anim_timer.timeout.connect(self._animate)
+        self._units: list | None = None     # the animated items (polygons, objects, child objects)
+        self._paused = False                # window inactive or minimised
+        self._anim_view = None              # the area animated (visible + margin) at the last full pass
+        self._full = True                   # the next _animate looks at every animated item
+        self._due: list = []                # heap (due time, n, item) of the items in the area
         self.render_ground()
         self.items_by_node: dict[int, QGraphicsItem] = {}
         self.child_by_node: dict[int, ChildItem] = {}     # the drawn child objects (ChildItem) by their node
@@ -808,96 +1112,134 @@ class MapScene(QGraphicsScene):
         self._update_timer()
         self.update()
 
-    def _animate(self) -> None:
-        t = time.monotonic() - self._clock
-        for it in self.items_by_node.values():
-            if isinstance(it, PolyItem) and it.surface is not None and it.surface.frames:
-                it.surface.tick(t)
-        if self.animate_models:
-            CLOCK.t = t
-            for it in self.items_by_node.values():
-                if isinstance(it, PartItem) and it.animated and it.isVisible():
-                    it.update()
-                    for c in it.companions():
-                        c.update()
-
-    def _update_timer(self) -> None:
-        fps = max((it.surface.fps for it in self.items_by_node.values()
-                   if isinstance(it, PolyItem) and it.surface is not None and len(it.surface.frames) > 1),
-                  default=0)
-        interval = int(1000 / fps) if fps > 0 else 0
-        if self.animate_models and any(isinstance(it, PartItem) and it.animated
-                                       for it in self.items_by_node.values()):
-            interval = min(interval or ANIM_INTERVAL, ANIM_INTERVAL)
-        if interval <= 0:
+    def set_paused(self, paused: bool) -> None:
+        """No animation while the window is inactive or minimised (the clock goes on: on return every item
+        shows the frame of that moment)."""
+        if paused == self._paused:
+            return
+        self._paused = paused
+        if paused:
             self.anim_timer.stop()
         else:
-            self.anim_timer.start(max(15, interval))
+            self._kick()
+
+    def sync_clock(self) -> None:
+        """Called by the view before painting: everything painted shows the frame of this moment."""
+        if self.animate_models:
+            CLOCK.t = time.monotonic() - self._clock
+
+    def _anim_area(self) -> QRectF | None:
+        """The visible area plus a margin (a quarter of the view, at least 256 world pixels); None without a
+        view."""
+        if not self.views():
+            return None
+        v = self.views()[0]
+        r = v.mapToScene(v.viewport().rect()).boundingRect()
+        m = max(256.0, 0.25 * max(r.width(), r.height()))
+        return r.adjusted(-m, -m, m, m)
+
+    def _animated_units(self) -> list:
+        if self._units is None:
+            units = []
+            for it in self.items_by_node.values():
+                if isinstance(it, PolyItem):
+                    if it.surface is not None and it.surface.animated:
+                        units.append(it.surface)
+                elif isinstance(it, PartItem):
+                    units += [u for u in [it] + it.descendants() if u.animated]
+            self._units = units
+        return self._units
+
+    def _animate(self) -> None:
+        """Redraw the animated items in or near the view whose frame changed, then sleep until the next change
+        one of them makes (zaxtools.anim: timed_next, entity_next, layer_next) - instead of repainting all of
+        them at a fixed rate. At most ANIM_MAX_FPS wake-ups per second (the screen shows no more; a frame is
+        then at most 1/ANIM_MAX_FPS s late). Paused while the window is inactive. A full pass (``_full``:
+        after a change of the items, their visibility, the view or the clock) decides which items are in
+        the area and looks at all of them; the other wake-ups only at those whose change is due."""
+        if self._paused:
+            return
+        now = time.monotonic() - self._clock
+        CLOCK.t = now if self.animate_models else None
+        if self._full:
+            self._full = False
+            area = self._anim_area()
+            self._anim_view = area
+            due = []
+            for n, u in enumerate(self._animated_units()):
+                surface = isinstance(u, SurfaceItem)
+                if (not surface and CLOCK.t is None) or not u.isVisible() \
+                        or (area is not None and not area.intersects(u.anim_rect())):
+                    continue
+                due.append((-math.inf, n, u))
+            self._due = due
+        heap = self._due
+        heapq.heapify(heap)
+        while heap and heap[0][0] <= now + 0.0005:
+            _, n, u = heapq.heappop(heap)
+            surface = isinstance(u, SurfaceItem)
+            sig = u.frame_signature(now) if surface else u.frame_signature()
+            if sig != getattr(u, 'anim_sig', None):
+                u.anim_sig = sig
+                u.redraw_frame(sig) if surface else u.redraw_frame()
+            # never within this wake-up again (the clock stands still in it): at least 1 ms on
+            heapq.heappush(heap, (max(u.next_change(now), now + 0.001), n, u))
+        if heap and heap[0][0] < math.inf:
+            # on a grid of 1/ANIM_MAX_FPS s: the changes of many items fall into one wake-up and one paint
+            slot = 1 / ANIM_MAX_FPS
+            wake = max(math.ceil(heap[0][0] / slot), math.floor(now / slot) + 1) * slot
+            left = wake - (time.monotonic() - self._clock)
+            self.anim_timer.start(max(1, int(math.ceil(left * 1000))))
+
+    def view_changed(self) -> None:
+        """The view scrolled or zoomed: animate what came into the area at once."""
+        if self._paused:
+            return
+        area = self._anim_area()
+        if area is not None and (self._anim_view is None or not self._anim_view.contains(area)):
+            self._anim_view = area
+            self._kick()
+
+    def _kick(self) -> None:
+        """Look at every animated item now (full pass)."""
+        self._full = True
+        if not self._paused:
+            self.anim_timer.start(0)
+
+    def _update_timer(self) -> None:
+        """The set of animated items changed."""
+        self._units = None
+        self._kick()
 
     def render_ground(self) -> None:
-        """The ground at half resolution at once (1 s for 5000 × 5000), the full resolution (4 s) in a
-        background thread: sharp once zoomed in, on a Retina screen from 50 % on."""
-        img = render_ground(self.level, self.assets, (0, 0, *self.level.size), GROUND_STEP, surfaces=False)
-        self._grounds = {GROUND_STEP: to_pixmap(np.clip(img, 0, 255).astype(np.uint8))}
-        self._show_ground()
-        self._ground_job += 1
-        self._ground_dirty = []
-        threading.Thread(target=self._render_full_ground, args=(self._ground_job,), daemon=True).start()
+        """Compute the ground anew (GroundTiles): the visible part first, the rest in the background."""
+        self.ground_tiles.redraw()
 
-    def _render_full_ground(self, job: int) -> None:
-        try:        # the textures are loaded by the half-resolution pass; painting meanwhile is redone after
-            img = render_ground(self.level, self.assets, (0, 0, *self.level.size), 1, surfaces=False)
-            self._ground_ready.emit(job, np.clip(img, 0, 255).astype(np.uint8))
-        except Exception:       # noqa: BLE001 - a level changed under the thread: the half resolution stays
-            pass
-
-    def _full_ground_ready(self, job: int, img) -> None:
-        if job != self._ground_job:
-            return
-        self._grounds[1] = to_pixmap(img)
-        dirty, self._ground_dirty = self._ground_dirty or [], None
-        for box in dirty:
-            self._update_ground_at(1, box)
-        self._show_ground()
+    def shutdown(self) -> None:
+        """End the ground's thread (the scene is about to be replaced)."""
+        self.ground_tiles.stop()
 
     def set_detail(self, screen_per_world: float, smooth: bool) -> None:
         """Called by the view before painting: device pixels per world pixel (zoom × device pixel ratio)
-        and whether pixmaps are drawn smoothly (else with sharp pixels)."""
-        detail = screen_per_world >= GROUND_DETAIL
-        if detail != self._detail:
-            self._detail = detail
-            self._show_ground()
-        mode = Qt.SmoothTransformation if smooth else Qt.FastTransformation
-        if self.ground.transformationMode() != mode:
-            self.ground.setTransformationMode(mode)
-
-    def _show_ground(self) -> None:
-        step = 1 if self._detail and 1 in self._grounds else GROUND_STEP
-        if self.ground.pixmap().cacheKey() != self._grounds[step].cacheKey():
-            self.ground.setPixmap(self._grounds[step])
-            self.ground.setScale(step)
+        and whether pixmaps are drawn smoothly (else with sharp pixels). The ground computes the visible part
+        at that resolution first (GroundTiles.want)."""
+        self._detail = screen_per_world >= GROUND_DETAIL
+        self.sync_clock()
+        self.view_changed()
+        if self.views():
+            v = self.views()[0]
+            vp = v.viewport().rect()
+            self.ground_tiles.want(1 if self._detail else GROUND_STEP, v.mapToScene(vp).boundingRect(),
+                                   v.mapToScene(vp.center()))
+        if smooth != self._smooth:
+            self._smooth = smooth
+            for it in self.ground_tiles.items.values():
+                it.smooth = smooth
+                it.update()
 
     def update_ground(self, box) -> None:
         """Only redraw the world area box=(x0, y0, x1, y1) of the ground."""
-        for step in self._grounds:
-            self._update_ground_at(step, box)
-        if self._ground_dirty is not None:
-            self._ground_dirty.append(box)
-        self._show_ground()
-
-    def _update_ground_at(self, s: int, box) -> None:
-        W, H = self.level.size
-        x0, y0 = max(0, int(box[0]) // s * s), max(0, int(box[1]) // s * s)
-        x1, y1 = min(W, int(box[2])), min(H, int(box[3]))
-        if x1 <= x0 or y1 <= y0:
-            return
-        img = render_ground(self.level, self.assets, (x0, y0, x1, y1), s, surfaces=False)
-        pix = self._grounds[s]
-        p = QPainter(pix)
-        p.setCompositionMode(QPainter.CompositionMode_Source)
-        p.drawPixmap(x0 // s, y0 // s, to_pixmap(np.clip(img, 0, 255).astype(np.uint8)))
-        p.end()
-        self._grounds[s] = pix
+        self.ground_tiles.update(box)
 
     def _add_part(self, p: LevelPart) -> None:
         if p.polygon and p.position is None:
@@ -1039,6 +1381,7 @@ class MapScene(QGraphicsScene):
                 self._show_with_children(it, v)
             if not v:
                 it.setSelected(False)
+        self._kick()
 
     def _show_with_children(self, it: PartItem, v: bool) -> None:
         """Show or hide an item's companions and its child objects (each also by its own visibility), down the

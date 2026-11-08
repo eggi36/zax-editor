@@ -2,7 +2,7 @@
 
 Runs the real editor (zaxeditor.app.main) with its own settings and cache name, so the user's settings are never read
 or written, opens a level, waits until the event loop runs, saves a screenshot of the main window (window.grab()) and a
-report (report.json: start time, UI language, a translated sample text, window title, menus), optionally plays one WAV
+report (report.json: start time, level and catalogue ready, UI language, a translated sample text, window title, menus), optionally plays one WAV
 and one OGG of the game data through the viewer's QAudioSink player (``sound``: decode, bytes the sink consumed, its
 state and error, the media plugin and whether any FFmpeg library is loaded), removes its settings and cache again and
 ends the process.
@@ -31,7 +31,7 @@ from pathlib import Path
 
 NAME = 'Zax-Editor-Smoke'           # settings and cache name instead of the editor's 'Zax-Editor'
 DELAY_MS = int(os.environ.get('ZAX_EDITOR_SMOKE_DELAY_MS', '4000'))
-WAIT_S = float(os.environ.get('ZAX_EDITOR_SMOKE_WAIT_S', '90'))
+WAIT_S = float(os.environ.get('ZAX_EDITOR_SMOKE_WAIT_S', '240'))
 
 
 def loaded_libraries() -> list[str]:
@@ -191,7 +191,7 @@ def install(out: str, lang: str = 'de', keep_cache: bool = False, show_report: b
     s.clear()
     s.setValue('language', lang)
     s.sync()
-    state = {'shown': None, 'loop': None, 'loaded': None, 'polls': 0}
+    state = {'shown': None, 'loop': None, 'loaded': None, 'catalog': None, 'polls': 0}
     orig_show = app_mod.MainWindow.show
     from zaxeditor import outputdir, package_root
     real_suggestion = outputdir.suggestion
@@ -253,6 +253,7 @@ def install(out: str, lang: str = 'de', keep_cache: bool = False, show_report: b
     def finish(win) -> None:
         report = {
             'shown_s': state['shown'], 'first_events_s': state['loop'], 'level_loaded_s': state['loaded'],
+            'catalog_ready_s': state['catalog'],
             'frozen': bool(getattr(sys, 'frozen', False)), 'python': sys.version.split()[0],
             'platform': sys.platform, 'qpa': QApplication.platformName(),
             'language_setting': lang,
@@ -334,11 +335,14 @@ def install(out: str, lang: str = 'de', keep_cache: bool = False, show_report: b
                 poll()
 
             def poll() -> None:
-                # wait for the level given on the command line (or WAIT_S without one), then DELAY_MS for the ground
+                # wait for the level given on the command line (or WAIT_S without one) and the model catalogue (built
+                # in the background on a first start), then DELAY_MS for the ground
                 state['polls'] += 1
-                if getattr(self, 'source', None) is not None or state['polls'] * 0.1 >= WAIT_S:
-                    if getattr(self, 'source', None) is not None:
-                        state['loaded'] = round(time.time() - t0, 3)
+                if state['loaded'] is None and getattr(self, 'source', None) is not None:
+                    state['loaded'] = round(time.time() - t0, 3)
+                if state['catalog'] is None and getattr(self, 'catalog', None) is not None:
+                    state['catalog'] = round(time.time() - t0, 3)
+                if (state['loaded'] is not None and state['catalog'] is not None) or state['polls'] * 0.1 >= WAIT_S:
                     QTimer.singleShot(DELAY_MS, lambda: finish(self))
                 else:
                     QTimer.singleShot(100, poll)
