@@ -25,7 +25,7 @@ DELAY_MS = int(os.environ.get('ZAX_EDITOR_SMOKE_DELAY_MS', '4000'))
 WAIT_S = float(os.environ.get('ZAX_EDITOR_SMOKE_WAIT_S', '90'))
 
 
-def install(out: str, lang: str = 'de', keep_cache: bool = False) -> None:
+def install(out: str, lang: str = 'de', keep_cache: bool = False, show_report: bool = False) -> None:
     """Patch the editor's settings name, preset the UI language and hook the main window's first show."""
     from PySide6.QtCore import QSettings, QStandardPaths, QTimer
     from PySide6.QtWidgets import QApplication
@@ -77,8 +77,21 @@ def install(out: str, lang: str = 'de', keep_cache: bool = False) -> None:
             shutil.rmtree(cache, ignore_errors=True)
         if Path(report['settings_file']).is_file() and Path(report['settings_file']).stem.endswith(NAME):
             Path(report['settings_file']).unlink()
-        sys.stdout.flush()
-        sys.stderr.flush()
+        if show_report:
+            # the report on screen for a screenshot (Windows VM: the folder's files cannot be fetched)
+            from PySide6.QtWidgets import QMessageBox
+            box = QMessageBox(QMessageBox.Information, NAME, json.dumps(report, indent=1, ensure_ascii=False))
+            box.setModal(False)
+            box.show()
+            state['box'] = box
+            QTimer.singleShot(20000, end)
+        else:
+            end()
+
+    def end() -> None:
+        for stream in (sys.stdout, sys.stderr):     # None under pythonw.exe
+            if stream is not None:
+                stream.flush()
         os._exit(0)     # also from a nested event loop (the catalogue's progress), threads and all
 
     def show(self) -> None:
@@ -113,13 +126,14 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument('--data', required=True, help='the game data (Data.dat or a Data folder)')
     p.add_argument('--level', help='a level below the game data, e.g. "Levels/ACT 1/M1M2/01 Main.zax"')
     p.add_argument('--lang', default='de')
+    p.add_argument('--show-report', action='store_true', help='show the report in a message box for 20 s before the end')
     p.add_argument('--keep-cache', action='store_true', help='keep the catalogue cache for a second, warm run')
     p.add_argument('--delay-ms', type=int, help=f'how long the loaded level stays on screen (default {DELAY_MS})')
     a = p.parse_args(argv)
     if a.delay_ms is not None:
         DELAY_MS = a.delay_ms
     os.environ['ZAX_DATA'] = a.data
-    install(a.out, a.lang, a.keep_cache)
+    install(a.out, a.lang, a.keep_cache, a.show_report)
     from zaxeditor.app import main as editor_main
     return editor_main([sys.argv[0]] + ([a.level] if a.level else []))
 
