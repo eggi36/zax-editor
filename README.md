@@ -13,6 +13,50 @@ The level editor for "Zax: The Alien Hunter" (Reflexive Entertainment / JoWooD, 
 
 It is built on **zaxtools** from [zax-formats](https://github.com/eggi36/zax-formats) (every file format of the game read and written byte for byte), which it expects next to this repository (or `ZAX_FORMATS`). The decompilation of Zax.exe is [zax-decomp](https://github.com/eggi36/zax-decomp) (its docs explain the engine behind the editor's checks and help texts); Test in game runs the VM tool of the test harness next to it (`ZAX_TESTTOOLS`), which is not published. Until 2026-11-07 the editor and the format library were one repository.
 
+## Using the editor
+
+Shortcuts are written for Windows; on macOS **Ctrl** is **⌘** and **Alt** is **⌥**. Every command is also in the menus.
+
+**Panels.** The toolbar buttons Objects, Models and Properties (and the entries of the Window menu, for all panels) show a panel; a click on the panel already shown hides it and frees the space. Each side shows one panel at a time: left Objects, Models or Ground; right Properties or Level settings; below the map Level check or Dialogue. The editor remembers the panels and their widths; Window → Restore default layout goes back to Objects and Properties.
+
+| On the map | |
+|---|---|
+| Mouse wheel | Zoom (trackpad on macOS: pinch or ⌘ + swipe) |
+| Hold the middle button and drag | Pan (trackpad on macOS: swipe with two fingers) |
+| Click | Select an object (Ctrl + click adds to the selection) |
+| Drag on an object | Move the selection |
+| Drag on empty ground | Select with a rubber band |
+| Alt + click / Alt + drag | Select / move a child object (upper body, carried item) |
+| Esc | Clear the selection, cancel drawing, stop painting |
+
+| Polygons | |
+|---|---|
+| Collision, Way points, Surface (toolbar) | Draw: click = point, Backspace = remove the last point; double click, Return or right click = done; Esc = cancel |
+| Drag a yellow point of a selected polygon | Move the point |
+| Double click on an edge of a selected polygon | Insert a point (also: right click on the polygon → Insert point here) |
+| Right click on a point | Delete point |
+
+| Ground (Paint ground, B) | |
+|---|---|
+| Drag | Paint with the texture chosen in the Ground panel |
+| Alt + click | Pick up the texture under the mouse |
+| [ and ] | Smaller / larger brush |
+| B or Esc | Stop painting |
+
+New objects: in the Models panel double click a model (placed in the middle of the view) or drag it onto the map.
+
+| Key | Command | Key | Command |
+|---|---|---|---|
+| Ctrl+N / Ctrl+O | New / open level | L / Shift+L | Links of the selection / all links |
+| Ctrl+S / Ctrl+Shift+S | Save / save as | W | Way point network |
+| Ctrl+Z | Undo | G | Ground grid |
+| Ctrl+Y (macOS ⌘⇧Z) | Redo | Ctrl+0 | Whole level |
+| Ctrl+C / Ctrl+V | Copy / paste (at the middle of the view) | Ctrl++ / Ctrl+- | Zoom in / out |
+| Ctrl+D | Duplicate | F7 | Level → Check |
+| Delete or Backspace | Delete | F5 | Test in game |
+| F2 | Rename (with references) | Ctrl+Shift+L | Level settings |
+| Ctrl+Shift+N | Add object (Models panel) | Ctrl+Shift+D | Dialogue script |
+
 ## Setup
 
 1. Python 3.9 or newer: `python3 -m venv .venv && .venv/bin/pip install -r requirements.txt`

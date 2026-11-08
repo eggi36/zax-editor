@@ -472,11 +472,6 @@ Nur Löschen reicht nicht: eine ältere Minimap – die mitgelieferte in Data.da
     </message>
     <message>
         <location filename="../../zaxeditor/app.py"/>
-        <source>Links</source>
-        <translation>Verknüpfungen</translation>
-    </message>
-    <message>
-        <location filename="../../zaxeditor/app.py"/>
         <source>Level</source>
         <translation>Level</translation>
     </message>

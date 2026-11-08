@@ -64,7 +64,7 @@ EDGE_PICK = 8           # a double-click this many screen pixels next to an edge
 NEW_POLYGONS = {'CFreeRangePoly': QT_TRANSLATE_NOOP('app', 'Collision area (CFreeRangePoly)'),
                 'CWayPointsPolygon': QT_TRANSLATE_NOOP('app', 'Way point area (CWayPointsPolygon)'),
                 'CRenderablePolygon': QT_TRANSLATE_NOOP('app', 'Surface: texture, water, black (CRenderablePolygon) …')}
-LAYOUT_VERSION = 2       # increase when everyone should get the default layout once
+LAYOUT_VERSION = 3       # increase when everyone should get the default layout once
 POLY_ICONS = {'CFreeRangePoly': 'collision', 'CWayPointsPolygon': 'waypoints', 'CRenderablePolygon': 'surface'}
 
 
@@ -401,14 +401,11 @@ class MainWindow(QMainWindow):
         self.models_dock.setObjectName('models')
         self.models_dock.setWidget(self.models)
         self.addDockWidget(Qt.LeftDockWidgetArea, self.models_dock)
-        self.tabifyDockWidget(self.findChild(QDockWidget, 'objects'), self.models_dock)
         self.ground_panel = GroundPanel()
         self.ground_dock = QDockWidget(translate('app', 'Ground'), self)
         self.ground_dock.setObjectName('ground')
         self.ground_dock.setWidget(self.ground_panel)
         self.addDockWidget(Qt.LeftDockWidgetArea, self.ground_dock)
-        self.tabifyDockWidget(self.models_dock, self.ground_dock)
-        self.findChild(QDockWidget, 'objects').raise_()
         self.check_panel = CheckPanel()
         self.check_panel.jump_requested.connect(self.jump_to)
         self.check_panel.recheck_requested.connect(self.check_level)
@@ -416,7 +413,6 @@ class MainWindow(QMainWindow):
         self.check_dock.setObjectName('check')
         self.check_dock.setWidget(self.check_panel)
         self.addDockWidget(Qt.BottomDockWidgetArea, self.check_dock)
-        self.check_dock.hide()
         self.level_settings = LevelSettingsPanel()
         self.level_settings.push = self.undo.push
         self.undo.indexChanged.connect(lambda _i: self.level_settings.refresh())
@@ -424,16 +420,13 @@ class MainWindow(QMainWindow):
         self.settings_dock.setObjectName('levelsettings')
         self.settings_dock.setWidget(self.level_settings)
         self.addDockWidget(Qt.RightDockWidgetArea, self.settings_dock)
-        self.tabifyDockWidget(dock, self.settings_dock)
-        dock.raise_()
         self._check_ctx: levelcheck.Context | None = None
         self.dialogue_panel = DialoguePanel(self)
         self.dialogue_dock = QDockWidget(translate('app', 'Dialogue'), self)
         self.dialogue_dock.setObjectName('dialogue')
         self.dialogue_dock.setWidget(self.dialogue_panel)
         self.addDockWidget(Qt.BottomDockWidgetArea, self.dialogue_dock)
-        self.tabifyDockWidget(self.check_dock, self.dialogue_dock)
-        self.dialogue_dock.hide()
+        self._setup_panels()
         self.game_test = GameTest(self)
         self.ground_tool = GroundTool(self.ground_panel, lambda: self.scene, self.undo.push,
                                       lambda t: self.statusBar().showMessage(t, 4000))
@@ -446,23 +439,53 @@ class MainWindow(QMainWindow):
         if geo is not None:
             self.restoreGeometry(geo)
         if state is not None:
-            self.restoreState(state, LAYOUT_VERSION)    # older layout: the default stays
+            self._restore_layout(state)                 # older layout: the default stays
         self.statusBar().showMessage(translate('app', 'File → Open level …   ·   Mouse wheel: zoom, middle mouse '
                                                'button: pan'))
         self._update_title()
 
+    def _setup_panels(self) -> None:
+        """The panels: one at a time on each side. They cannot be moved, floated or put together, so no tab bar
+        can appear (no tabifying, and the window allows no tabbed or nested docks)."""
+        self.setDockOptions(QMainWindow.DockOption(0))
+        self.panels = {name: self.findChild(QDockWidget, name)
+                       for name in ('objects', 'models', 'ground', 'props', 'levelsettings', 'check', 'dialogue')}
+        for d in self.panels.values():
+            d.setFeatures(QDockWidget.DockWidgetClosable)
+            d.hide()
+        self.panels['objects'].show()
+        self.panels['props'].show()
+
+    def show_panel(self, dock: QDockWidget) -> None:
+        """Shows a panel in place of the one shown on its side."""
+        others = [d for d in self.panels.values() if d is not dock and not d.isHidden()
+                  and self.dockWidgetArea(d) == self.dockWidgetArea(dock)]
+        dock.show()                     # first, so that the side keeps its width
+        for d in others:
+            d.hide()
+
     def toggle_panel(self, dock: QDockWidget) -> None:
-        if dock.isVisible():            # visible (front tab) -> hide
+        if dock.isHidden():
+            self.show_panel(dock)
+        else:                           # the shown one: the side closes
             dock.hide()
-        else:                           # hidden or behind another tab -> bring to front
-            dock.show()
-            dock.raise_()
+
+    def _restore_layout(self, state) -> None:
+        self.restoreState(state, LAYOUT_VERSION)
+        for name, a in self.panel_actions.items():      # no signal from docks of a window not shown yet
+            a.setChecked(not self.panels[name].isHidden())
 
     def reset_layout(self) -> None:
-        self.restoreState(self.default_layout, LAYOUT_VERSION)
-        self.findChild(QDockWidget, 'objects').raise_()
+        self._restore_layout(self.default_layout)
 
     # --- Construction --------------------------------------------------------
+    def createPopupMenu(self) -> QMenu:
+        """Context menu of title bars and toolbar: the panel actions instead of Qt's own, which ignore the sides."""
+        menu = QMenu(self)
+        menu.addActions(list(self.panel_actions.values()))
+        menu.addAction(self.toolbar.toggleViewAction())
+        return menu
+
     def _build_object_list(self) -> None:
         w = QWidget()
         lay = QVBoxLayout(w)
@@ -641,25 +664,29 @@ class MainWindow(QMainWindow):
         m.addSeparator()
         act(m, translate('app', 'Redraw ground'), lambda: self.scene and self.scene.render_ground(), 'Shift+F5')
 
-        # show/hide docks (also bring docks lying behind a tab to the front)
-        panels = []
-        for name, short_text, icon in (('objects', translate('app', 'Objects'), 'objects'),
-                                       ('models', translate('app', 'Models'), 'models'),
-                                       ('props', translate('app', 'Properties'), 'props')):
-            dock = self.findChild(QDockWidget, name)
+        # show/hide panels: the same actions in the toolbar (the three with an icon), the Window menu and the
+        # context menu of the title bars; checked = shown
+        self.panel_actions = {}
+        for name, dock in self.panels.items():
             a = QAction(dock.windowTitle(), self)
-            set_icon(a, icon)
             a.setCheckable(True)
-            a.setIconText(short_text)
+            a.setChecked(not dock.isHidden())
             a.setToolTip(translate('app', 'Show/hide the panel “{name}”').format(name=dock.windowTitle()))
             a.triggered.connect(lambda _on, d=dock: self.toggle_panel(d))
-            dock.visibilityChanged.connect(lambda vis, act_=a: act_.setChecked(vis))
-            panels.append(a)
+            dock.visibilityChanged.connect(lambda _vis, d=dock, act_=a: act_.setChecked(not d.isHidden()))
+            self.panel_actions[name] = a
+        panels = []
+        for name, short_text in (('objects', translate('app', 'Objects')), ('models', translate('app', 'Models')),
+                                 ('props', translate('app', 'Properties'))):
+            set_icon(self.panel_actions[name], name)
+            self.panel_actions[name].setIconText(short_text)
+            panels.append(self.panel_actions[name])
 
         # Toolbar: frequent commands (the same actions as in the menu); renaming and zooming in/out only
         # in the menu or by key, mouse wheel, trackpad
         tb = self.addToolBar(translate('app', 'Toolbar'))
         tb.setObjectName('toolbar')
+        self.toolbar = tb
         tb.setMovable(not macos.IS_MAC)     # macOS: part of the title bar (unified look), not a floating bar
         self.setUnifiedTitleAndToolBarOnMac(True)
         tb.setToolButtonStyle(Qt.ToolButtonTextUnderIcon)
@@ -671,11 +698,10 @@ class MainWindow(QMainWindow):
                  a_polys[1]: translate('app', 'Way points'), a_polys[2]: translate('app', 'Surface'),
                  a_exit: translate('app', 'Transition'), a_spawn: translate('app', 'Start point'),
                  self.ground_action: translate('app', 'Paint ground'), a_zin: translate('app', 'Zoom in'),
-                 a_zout: translate('app', 'Zoom out'), a_fit: translate('app', 'Whole level'),
-                 self.links_sel_action: translate('app', 'Links')}
+                 a_zout: translate('app', 'Zoom out'), a_fit: translate('app', 'Whole level')}
         for group in ((a_new, a_open, a_save), (a_undo, a_redo), panels, (a_dup, a_del),
                       (*a_polys, a_exit, a_spawn, self.ground_action),
-                      (a_fit, self.links_sel_action)):
+                      (a_fit,)):
             if tb.actions():
                 tb.addSeparator()
             for a in group:
@@ -697,10 +723,9 @@ class MainWindow(QMainWindow):
         act(m, translate('app', 'Test in game'), self.game_test.run, 'F5')
         act(m, translate('app', 'Test in game – settings …'), self.game_test.settings_dialog)
 
-        # Window: show closed docks again, the UI language
+        # Window: the panels, the UI language
         m = self.menuBar().addMenu(translate('app', 'Window'))
-        for name in ('objects', 'models', 'ground', 'props', 'levelsettings', 'check', 'dialogue'):
-            m.addAction(self.findChild(QDockWidget, name).toggleViewAction())
+        m.addActions(list(self.panel_actions.values()))
         m.addAction(tb.toggleViewAction())
         m.addSeparator()
         act(m, translate('app', 'Model viewer …'), lambda: self.open_viewer(), 'Ctrl+Shift+M')
@@ -1299,8 +1324,7 @@ class MainWindow(QMainWindow):
         if self.level is None or self.ds is None:
             return
         findings = self._run_check()
-        self.check_dock.show()
-        self.check_dock.raise_()
+        self.show_panel(self.check_dock)
         self.statusBar().showMessage(translate('app', 'Level check: {summary}').format(
             summary=levelcheck.summary(findings)), 6000)
 
@@ -1315,8 +1339,7 @@ class MainWindow(QMainWindow):
             return
         c = levelcheck.counts(findings)
         if c['error']:
-            self.check_dock.show()
-            self.check_dock.raise_()
+            self.show_panel(self.check_dock)
             msgbox.warning(self, APP, translate('app', 'The level check found %n error(s) with which the game exits, '
                                                        'hangs or does not read the whole level (list in the window '
                                                        '“Level check”).\n\nThe file is saved anyway.', None, c['error']))
@@ -1801,8 +1824,7 @@ class MainWindow(QMainWindow):
         self.undo.push(AddPartsCommand(self.level, nodes, self._parts_changed, text))
 
     def add_object(self) -> None:
-        self.models_dock.show()
-        self.models_dock.raise_()
+        self.show_panel(self.models_dock)
         self.models.focus_search()
 
     def import_images(self) -> None:
@@ -2128,8 +2150,7 @@ class MainWindow(QMainWindow):
             self.view.cancel_drawing()
             self.scene.clearSelection()
             self.ground_panel.set_level(self.level, self.assets)
-            self.ground_dock.show()
-            self.ground_dock.raise_()
+            self.show_panel(self.ground_dock)
             self.view.set_tool(self.ground_tool)
             self.statusBar().showMessage(translate('app', 'Paint ground: drag with the left mouse button, Alt + click '
                                                           '= pick up the texture'), 6000)
@@ -2229,8 +2250,7 @@ class MainWindow(QMainWindow):
 
     def show_dialogue(self) -> None:
         """Level → Dialogue script: the dock with the script of the selected dialogue action."""
-        self.dialogue_dock.show()
-        self.dialogue_dock.raise_()
+        self.show_panel(self.dialogue_dock)
         parts = self.scene.selected_parts() if self.scene else []
         self.dialogue_panel.set_part(parts[0] if len(parts) == 1 else None)
 
