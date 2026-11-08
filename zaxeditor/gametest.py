@@ -174,7 +174,10 @@ class GameTest:
 
     def map_name(self, target: Path) -> str | None:
         """The level's path below the output folder's Levels, without .zax (the launcher's /Map)."""
-        levels = (self.win.output_dir() / 'Levels').resolve()
+        out = self.win.output_dir()
+        if out is None:
+            return None
+        levels = (out / 'Levels').resolve()
         try:
             rel = target.resolve().relative_to(levels)
         except ValueError:
@@ -239,6 +242,8 @@ class GameTest:
                 'gametest', 'No VM share is mounted (the shares of zax-testtools\' vmtest/local.json).\n\nStart the VM and '
                 'its helper (zax-vm-helper.cmd) yourself and connect the share in the Finder (Go → Connect to '
                 'Server, smb://<VM>/<share>). The editor never starts a VM.'))
+            return
+        if win.need_output() is None:
             return
         target = win._target()
         mapname = self.map_name(target) if target else None

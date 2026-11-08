@@ -30,7 +30,7 @@ from zaxtools import children as childlist
 from zaxtools import levelcheck
 from zaxtools import rules as rules_txt
 
-from . import default_output, i18n, macos, msgbox
+from . import default_output, i18n, macos, msgbox, outputdir, package_root
 from .i18n import QT_TRANSLATE_NOOP, translate
 from .models import MIME, ModelBrowser
 from .parts import AddPartsCommand, ChildListCommand, NodeFieldsCommand, RemovePartsCommand, anchor, copies
@@ -53,7 +53,8 @@ from .surfacedlg import SurfaceDialog, surface_entries
 from .scene import POLY_COLORS, ChildItem, DrawItem, MapScene, MoveCommand, PolyItem, SpriteCache
 
 APP = 'Zax-Editor'
-DEFAULT_OUT = default_output()   # the workspace's editor-output/ (was ~/Documents/Zax-Ausgabe until 2026-11-02); a package's: zaxeditor.default_output
+DEFAULT_OUT = default_output()   # the workspace's editor-output/ (was ~/Documents/Zax-Ausgabe until 2026-11-02); None in a
+#                                 package: chosen at the first start (MainWindow.ask_output)
 REBUILD_KEYS = {'Model', 'Cur Sequence', 'Current Frame', 'Visible', 'Active', 'Position X', 'Position Y', 'Polygon', 'Start FacingAngle', 'Movement Angle', 'Aiming Angle', 'Facing Backwards',
                 'Rendering Height', 'Rendering Height Float'}
 SHARP_FROM = 1          # screen pixels per world pixel from which the map is drawn with sharp pixels
@@ -392,6 +393,7 @@ class MainWindow(QMainWindow):
         self.models.attach_requested.connect(lambda m: self.attach_model(m))
         self._viewer = None                             # Window -> Model viewer (zaxeditor.viewer)
         self._settings_dlg = None                       # File -> Settings (zaxeditor.settingsdlg)
+        self._output_asked = False                      # a package asked for its output folder in this session
         self._usage_job = None                          # the background analysis of the models' use (zaxtools.usage)
         self.models_dock = QDockWidget(translate('app', 'Models'), self)
         self.models_dock.setObjectName('models')
@@ -743,6 +745,11 @@ class MainWindow(QMainWindow):
                 path = self._ask_data_path()
                 if not path or not self._set_data(path):
                     return None
+            if self.output_dir() is None and not self._output_asked:
+                # a package's first start: right after the game data, where its own files go (cancel: asked again
+                # before the first write)
+                self._output_asked = True
+                self.ask_output()
         return self.ds
 
     def _ask_data_path(self) -> str | None:
@@ -789,7 +796,7 @@ class MainWindow(QMainWindow):
         self.ds = ds
         self.assets = Assets(self.ds)
         self.sprites = SpriteCache(self.assets)
-        self.props.dialogs = DialogScripts(self.ds, [self.output_dir()])
+        self.props.dialogs = DialogScripts(self.ds, self.output_roots())
         self.props.ds = self.ds
         self.settings.setValue('data', path)
         self._load_catalog()
@@ -819,8 +826,9 @@ class MainWindow(QMainWindow):
             if dlg is not None:
                 dlg.close()
         self.props.schema = self._open_schema()
-        self.assets.own_roots = [self.output_dir()]
-        self.catalog.add_own(self.output_dir(), self.props.schema)
+        self.assets.own_roots = self.output_roots()
+        if self.output_dir() is not None:
+            self.catalog.add_own(self.output_dir(), self.props.schema)
         self.assets.sort_y = self.catalog.sorting_y()
         if self.scene:
             self.scene.resort()
@@ -955,22 +963,88 @@ class MainWindow(QMainWindow):
         if path:
             self._set_data(path)
 
-    def output_dir(self) -> Path:
-        return Path(self.settings.value('output') or DEFAULT_OUT)
+    def output_dir(self) -> Path | None:
+        """The output folder (own levels, graphics, dialogue scripts, Rules.txt); None while a package has none yet."""
+        v = self.settings.value('output')
+        return Path(v) if v else DEFAULT_OUT
+
+    def output_roots(self) -> list[Path]:
+        """The output folder as the extra roots readers look in first (none while it is not chosen)."""
+        out = self.output_dir()
+        return [out] if out is not None else []
+
+    def need_output(self) -> Path | None:
+        """The output folder before writing into it: asked for first while none is chosen (None: cancelled)."""
+        return self.output_dir() or self.ask_output()
+
+    def ask_output(self) -> Path | None:
+        """Ask where the editor saves own levels, graphics and Rules.txt, suggesting Documents/Zax-Editor-Output;
+        asked again after a folder is refused (``set_output``). None if the user postpones it."""
+        suggested = outputdir.suggestion()
+        while True:
+            box = msgbox.make(self, APP, translate('app', 'Where shall the editor save your own levels, graphics '
+                                                          'and Rules.txt?'))
+            box.setInformativeText(translate('app', 'Suggested: {path}\n\nAny folder outside the game data and '
+                                                    'outside the editor itself will do. You can change it later in '
+                                                    'File → Settings.').format(path=suggested))
+            b_use = box.addButton(translate('app', 'Use the suggested folder'), QMessageBox.AcceptRole)
+            b_pick = box.addButton(translate('app', 'Choose folder …'), QMessageBox.ActionRole)
+            b_later = box.addButton(translate('app', 'Later'), QMessageBox.RejectRole)
+            box.setDefaultButton(b_use)
+            box.setEscapeButton(b_later)
+            box.exec()
+            if box.clickedButton() is b_use:
+                path = str(suggested)
+            elif box.clickedButton() is b_pick:
+                start = suggested if suggested.is_dir() else suggested.parent
+                path = self._pick_output_folder(str(start))
+                if not path:
+                    continue
+            else:
+                self.statusBar().showMessage(translate('app', 'No output folder yet: the editor asks again before '
+                                                              'it saves anything.'), 8000)
+                return None
+            if self.set_output(path):
+                return self.output_dir()
+
+    def _pick_output_folder(self, start: str) -> str:
+        """The folder dialog of the output folder ('' if cancelled)."""
+        return QFileDialog.getExistingDirectory(self, translate('app', 'Choose output folder'), start)
 
     def choose_output(self) -> None:
-        path = QFileDialog.getExistingDirectory(self, translate('app', 'Choose output folder'), str(self.output_dir()))
-        if path:
-            if self._inside_data(Path(path)):
-                msgbox.warning(self, APP, translate('app', 'The output folder must not lie inside the game data.'))
+        """File → Choose output folder (and the settings window): asked again after a folder is refused."""
+        cur = self.output_dir()
+        start = str(cur) if cur is not None else str(outputdir.suggestion().parent)
+        while True:
+            path = self._pick_output_folder(start)
+            if not path or self.set_output(path):
                 return
-            self.settings.setValue('output', path)
-            if self.props.dialogs is not None:
-                self.props.dialogs = DialogScripts(self.ds, [self.output_dir()])
-            self._check_ctx = None
-            self.dialogue_panel.level_changed()
-            if self.catalog is not None:             # the own models of the new output folder
-                self._load_catalog()
+
+    def _data_path(self) -> str | None:
+        """The game data in use (or chosen): the folder "Data" or the Data.dat."""
+        if self.ds is not None:
+            return str(self.ds.root)
+        return self.settings.value('data') or os.environ.get('ZAX_DATA') or None
+
+    def set_output(self, path: str | os.PathLike) -> bool:
+        """Make ``path`` the output folder (setting ``output``), after the checks of ``outputdir.problem``: not
+        inside the editor's package, not inside the game data, writable. False with a message otherwise."""
+        why = outputdir.problem(path, self._data_path(), package_root())
+        if why is not None:
+            msgbox.warning(self, APP, why)
+            return False
+        before = self.output_dir()
+        new = Path(path).expanduser().resolve()
+        self.settings.setValue('output', str(new))
+        if self.props.dialogs is not None:
+            self.props.dialogs = DialogScripts(self.ds, self.output_roots())
+        self._check_ctx = None
+        self.dialogue_panel.level_changed()
+        # the own models of the new output folder (and none of the old one)
+        if self.catalog is not None and (before is not None or (new / 'Cache' / 'Models').is_dir()):
+            self._load_catalog()
+        self._update_title()
+        return True
 
     def _inside_data(self, p: Path) -> bool:
         if self.ds is None:
@@ -1011,8 +1085,9 @@ class MainWindow(QMainWindow):
             msgbox.warning(self, APP, translate('app', '{path} already exists in the game data.\n'
                                                        'Please choose another name or folder.').format(path=rel))
             return
-        target = self.output_dir() / rel
-        if target.exists() and msgbox.question(
+        out = self.output_dir()
+        target = out / rel if out is not None else None
+        if target is not None and target.exists() and msgbox.question(
                 self, APP, translate('app', '{path}\nalready exists and will be overwritten when saving. Create it '
                                             'anyway?').format(path=target),
                 QMessageBox.Yes | QMessageBox.Cancel) != QMessageBox.Yes:
@@ -1027,7 +1102,7 @@ class MainWindow(QMainWindow):
     def open_file_dialog(self) -> None:
         if self.data_source() is None or not self.maybe_discard():
             return
-        path, _ = QFileDialog.getOpenFileName(self, translate('app', 'Open level file'), str(self.output_dir()),
+        path, _ = QFileDialog.getOpenFileName(self, translate('app', 'Open level file'), str(self.output_dir() or ''),
                                               translate('app', 'Zax level (*.zax)'))
         if path:
             self.load(Path(path).read_bytes(), ('file', path))
@@ -1078,14 +1153,19 @@ class MainWindow(QMainWindow):
             self.view.fitInView(QRectF(0, 0, *self.scene.level.size), Qt.KeepAspectRatio)
 
     # --- Save ------------------------------------------------------------------
-    def _target(self) -> Path | None:
+    def _target(self, ask: bool = False) -> Path | None:
+        """Where the level is saved: below the output folder for a level of the game data, else its file. Without an
+        output folder None, or with ``ask`` the folder asked for first."""
         if self.source is None:
             return None
         kind, ref = self.source
-        return self.output_dir() / ref if kind == 'data' else Path(ref)
+        if kind != 'data':
+            return Path(ref)
+        out = self.need_output() if ask else self.output_dir()
+        return out / ref if out is not None else None
 
     def save(self) -> bool:
-        t = self._target()
+        t = self._target(ask=True)
         if t is None:
             return False
         self._check_before_save()
@@ -1094,7 +1174,7 @@ class MainWindow(QMainWindow):
     def save_as(self) -> None:
         if self.level is None:
             return
-        t = self._target()
+        t = self._target() or outputdir.suggestion().parent / Path(self.source[1] if self.source else '').name
         path, _ = QFileDialog.getSaveFileName(self, translate('app', 'Save as'), str(t),
                                               translate('app', 'Zax level (*.zax)'))
         if path:
@@ -1158,7 +1238,7 @@ class MainWindow(QMainWindow):
     def _check_context(self) -> levelcheck.Context:
         schema = self.props.schema
         if self._check_ctx is None or self._check_ctx.ds is not self.ds or self._check_ctx.schema is not schema:
-            self._check_ctx = levelcheck.Context(self.ds, schema, self.exe_path(), [self.output_dir()])
+            self._check_ctx = levelcheck.Context(self.ds, schema, self.exe_path(), self.output_roots())
         return self._check_ctx
 
     def _set_waynet(self, on: bool) -> None:
@@ -1696,7 +1776,7 @@ class MainWindow(QMainWindow):
     def import_images(self) -> None:
         """File → Import images: PNGs as a game image, image sequence or model in the output folder
         (zaxeditor/importdlg.py); a model then appears in the model browser."""
-        if self.data_source() is None:
+        if self.data_source() is None or self.need_output() is None:
             return
         from .importdlg import ImportDialog
         last = self.settings.value('import_last') or {}
@@ -1813,7 +1893,7 @@ class MainWindow(QMainWindow):
         return found
 
     def edit_rules(self) -> None:
-        if self.ds is None:
+        if self.ds is None or self.need_output() is None:
             return
         RulesDialog(self, self.ds, self.output_dir(), self._level_sources(), self.props.schema,
                     lambda p: not self._inside_data(p)).exec()

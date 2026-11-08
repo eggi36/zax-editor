@@ -82,7 +82,7 @@ class SettingsDialog(QDialog):
         exe = win.exe_path()
         values = {'data': str(win.ds.root) if win.ds is not None else win.settings.value('data') or none,
                   'pack': win.settings.value('language_pack') or none,
-                  'output': str(win.output_dir()),
+                  'output': str(win.output_dir() or none),
                   'exe': str(exe) if exe else none}
         for key, label in self.labels.items():       # long paths shortened in the middle, whole in the tooltip
             label.setText(label.fontMetrics().elidedText(values[key], Qt.ElideMiddle, PATH_WIDTH))

@@ -98,6 +98,8 @@ zaxeditor/         desktop editor (PySide6), start: python -m zaxeditor ["Levels
                    menu roles (About, Settings ⌘,, Quit in the macOS app menu); map pixmaps sharp once a world
                    pixel covers whole screen pixels (Retina), ground at full resolution from a background thread
   macos.py         macOS-only touches (no-ops elsewhere): the app name in the menu bar and Dock instead of "Python"
+  outputdir.py     the output folder: the package's suggestion (Documents/Zax-Editor-Output) and the checks of a
+                   chosen folder (not in the package, not in the game data or Data.dat's folder, writable)
   settingsdlg.py   Settings window (File → Settings …, macOS app menu ⌘,): paths, save switches, UI language
   icons.py         toolbar icons (line drawings in the text colour, redrawn on a light/dark switch: set_icon),
                    Retina helpers for drawn/cached images (hidpi_pixmap, ratio_suffix)
@@ -145,8 +147,11 @@ tools/             (selftest_ui.py here, the rest in zax-formats since 2026-11-0
   package_macos.sh / package_windows.sh   test packages (README "Packages"): the macOS app (PyInstaller, ad hoc
                    signed) and the portable Windows folder (embeddable Python + wheels, assembled on the Mac); their
                    parts in package/ (spec, starter.c, assemble_windows.py, notices, zax_pkg_smoke.py: smoke test with
-                   its own settings name; --sound plays a WAV and an OGG through QAudioSink). A package defaults its
-                   output to Documents/Zax-Editor-Output (zaxeditor.default_output). QtMultimedia comes from PySide6-Addons
+                   its own settings name; drives the first-start output question; --sound plays a WAV and an OGG through
+                   QAudioSink). A package starts without an output folder (zaxeditor.default_output None, since
+                   2026-11-08): right after the game data it asks, suggesting Documents/Zax-Editor-Output
+                   (zaxeditor/outputdir.py: refuses folders in the package, in the game data or not writable);
+                   "Later" = asked again before the first write (MainWindow.need_output). QtMultimedia comes from PySide6-Addons
                    without any media backend plugin (QAudioSink needs none) and without FFmpeg
   selftest.py      regression test against the real data (zax-formats; sections 1-8)
   render_level.py  level as PNG (--polygons: collision/way point outlines, --overlays: AI overlays, --time)

@@ -7,6 +7,12 @@ and one OGG of the game data through the viewer's QAudioSink player (``sound``: 
 state and error, the media plugin and whether any FFmpeg library is loaded), removes its settings and cache again and
 ends the process.
 
+The first-start question of the output folder is driven programmatically (``OutputFlow``): with the setting empty the
+editor asks right after the game data; a folder inside the package and the game data folder are refused with a message,
+"Later" postpones it (the level still opens, nothing is written); in the report's ``output`` section the question comes
+again before the first write, a folder is chosen and stored, then the suggestion (redirected below the out dir, so the
+real documents folder stays untouched) is accepted and stored; on macOS/Linux also a read-only folder is refused.
+
     macOS app:  ZAX_EDITOR_SMOKE=<out dir> [ZAX_EDITOR_SMOKE_LANG=de] [ZAX_EDITOR_SMOKE_T0=<epoch s>] \
                 [ZAX_EDITOR_SMOKE_SOUND=1] ZAX_DATA=<Data.dat> "Zax Editor.app/Contents/MacOS/Zax Editor" "Levels/…/x.zax"
     Windows:    runtime\\python.exe -I -m zax_pkg_smoke --out DIR --data DATA.dat --level "Levels/…/x.zax" [--lang de]
@@ -129,6 +135,45 @@ def sound_check(data: str) -> dict:
     return out
 
 
+class OutputFlow:
+    """Answers the editor's output folder question and its refusals by script: a timer looks for the modal message box,
+    records its text and clicks the scripted button; ``MainWindow._pick_output_folder`` returns the scripted folders."""
+
+    def __init__(self, app_mod):
+        from PySide6.QtCore import QTimer
+        self.answers: list[str] = []        # 'use', 'choose', 'later' for a question; 'ok' for a refusal
+        self.picks: list[str] = []
+        self.events: list[dict] = []
+        self.timer = QTimer()
+        self.timer.setInterval(100)
+        self.timer.timeout.connect(self.tick)
+        self._seen = None
+        flow = self
+        app_mod.MainWindow._pick_output_folder = lambda _self, start: flow.pick(start)
+
+    def pick(self, start: str) -> str:
+        path = self.picks.pop(0) if self.picks else ''
+        self.events.append({'pick': path, 'start': start})
+        return path
+
+    def tick(self) -> None:
+        from PySide6.QtWidgets import QApplication, QMessageBox
+        box = QApplication.activeModalWidget()
+        if not isinstance(box, QMessageBox) or box is self._seen or not box.isVisible():
+            return
+        self._seen = box
+        roles = {box.buttonRole(b): b for b in box.buttons()}
+        question = QMessageBox.ActionRole in roles
+        want = self.answers.pop(0) if self.answers else None
+        self.events.append({'box': 'question' if question else 'message', 'text': box.text(),
+                            'informative': box.informativeText(), 'answer': want})
+        role = {'use': QMessageBox.AcceptRole, 'choose': QMessageBox.ActionRole,
+                'later': QMessageBox.RejectRole}.get(want) if question else None
+        button = roles.get(role) if role is not None else (box.buttons()[0] if box.buttons() else None)
+        if button is not None:
+            button.click()
+
+
 def install(out: str, lang: str = 'de', keep_cache: bool = False, show_report: bool = False,
             sound: bool = False) -> None:
     """Patch the editor's settings name, preset the UI language and hook the main window's first show."""
@@ -148,6 +193,62 @@ def install(out: str, lang: str = 'de', keep_cache: bool = False, show_report: b
     s.sync()
     state = {'shown': None, 'loop': None, 'loaded': None, 'polls': 0}
     orig_show = app_mod.MainWindow.show
+    from zaxeditor import outputdir, package_root
+    real_suggestion = outputdir.suggestion
+    suggestion_existed = real_suggestion().exists()
+    pkg = package_root()
+    data_dir = outputdir.data_folder(os.environ.get('ZAX_DATA'))
+    flow: dict = {'obj': None}
+
+    def output_check(win) -> dict:
+        """The rest of the flow on the opened editor: asked again before the first write, choose (after a refused
+        read-only folder where the platform has one) and store, then accept the (redirected) suggestion."""
+        f = flow['obj']
+        r: dict = {'startup_events': list(f.events), 'after_later': str(win.output_dir())}
+        f.events.clear()
+        if sys.platform != 'win32':
+            ro = out_dir / 'read-only'
+            ro.mkdir(exist_ok=True)
+            os.chmod(ro, 0o500)
+            f.answers += ['choose', 'ok']
+            f.picks.append(str(ro))
+        chosen = out_dir / 'chosen-output'
+        f.answers.append('choose')
+        f.picks.append(str(chosen))
+        got = win.need_output()
+        r['chosen'] = {'expected': str(chosen.resolve()), 'returned': str(got),
+                       'setting': QSettings(NAME, NAME).value('output'), 'events': list(f.events)}
+        f.events.clear()
+        if sys.platform != 'win32':
+            os.chmod(out_dir / 'read-only', 0o700)
+        win.settings.remove('output')
+        redirected = out_dir / 'suggested' / outputdir.SUGGESTED_NAME
+        outputdir.suggestion = lambda: redirected
+        f.answers.append('use')
+        got = win.need_output()
+        outputdir.suggestion = real_suggestion
+        r['suggested'] = {'expected': str(redirected.resolve()), 'returned': str(got),
+                          'setting': QSettings(NAME, NAME).value('output'), 'exists': redirected.is_dir(),
+                          'events': list(f.events)}
+        start = r['startup_events']
+        boxes = [e for e in start if 'box' in e]
+        r['summary'] = {        # one short line for the on-screen report (Windows VM)
+            'asked_at_start': bool(boxes) and boxes[0]['box'] == 'question',
+            'package_refused': len(boxes) > 1 and boxes[1]['box'] == 'message' and str(pkg) in boxes[1]['text'],
+            'data_refused': len(boxes) > 3 and boxes[3]['box'] == 'message' and str(data_dir) in boxes[3]['text'],
+            'later_left_none': r['after_later'] == 'None',
+            'read_only_refused': (sys.platform == 'win32' or any(e.get('box') == 'message'
+                                                                 for e in r['chosen']['events'])),
+            'chosen_stored': r['chosen']['returned'] == r['chosen']['expected'] == r['chosen']['setting'],
+            'suggested_stored': (r['suggested']['returned'] == r['suggested']['expected'] == r['suggested']['setting']
+                                 and r['suggested']['exists']),
+        }
+        r['summary']['all_ok'] = all(r['summary'].values())
+        r['real_suggestion'] = str(real_suggestion())
+        r['real_suggestion_created'] = real_suggestion().exists() and not suggestion_existed
+        r['package_root'] = str(pkg)
+        r['data_folder'] = str(data_dir)
+        return r
 
     def finish(win) -> None:
         report = {
@@ -179,7 +280,12 @@ def install(out: str, lang: str = 'de', keep_cache: bool = False, show_report: b
         cache = Path(QStandardPaths.writableLocation(QStandardPaths.GenericCacheLocation)) / NAME
         settings = QSettings(NAME, NAME)
         report['settings_file'] = settings.fileName()
-        report['output_dir_exists'] = app_mod.DEFAULT_OUT.exists()
+        report['default_output'] = str(app_mod.DEFAULT_OUT)
+        try:
+            report['output'] = output_check(win)
+        except Exception:  # noqa: BLE001 - the report records it
+            import traceback
+            report['output'] = {'exception': traceback.format_exc()}
         settings.clear()
         settings.sync()
         (out_dir / 'report.json').write_text(json.dumps(report, indent=1, ensure_ascii=False), encoding='utf-8')
@@ -192,7 +298,11 @@ def install(out: str, lang: str = 'de', keep_cache: bool = False, show_report: b
             # the report on screen for a screenshot (Windows VM: the folder's files cannot be fetched)
             from PySide6.QtWidgets import QMessageBox
             # one line per key (wrapped by the box), so the sound section still fits a 800-pixel-high screen
-            text = '\n'.join(f'{k}: {json.dumps(v, ensure_ascii=False)}' for k, v in report.items())
+            short = dict(report)
+            out_r = report.get('output') or {}
+            short['output'] = {k: out_r.get(k) for k in ('summary', 'real_suggestion', 'real_suggestion_created',
+                                                         'package_root', 'exception') if k in out_r}
+            text = '\n'.join(f'{k}: {json.dumps(v, ensure_ascii=False)}' for k, v in short.items())
             box = QMessageBox(QMessageBox.Information, NAME, text)
             box.setModal(False)
             box.show()
@@ -211,6 +321,12 @@ def install(out: str, lang: str = 'de', keep_cache: bool = False, show_report: b
         orig_show(self)
         if state['shown'] is None:
             state['shown'] = round(time.time() - t0, 3)
+            # first start: the question right after the game data; the package folder and the game data folder
+            # refused, then "Later"
+            f = flow['obj'] = OutputFlow(app_mod)
+            f.answers += ['choose', 'ok', 'choose', 'ok', 'later']
+            f.picks += [str((pkg or out_dir) / 'inside-package'), str(data_dir or out_dir)]
+            f.timer.start()
             self.resize(1440, 900)
 
             def loop_started() -> None:

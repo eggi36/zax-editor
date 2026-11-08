@@ -62,7 +62,8 @@ CUT_COLOR = QColor(0, 230, 255)
 BOUNDS_COLOR = QColor(255, 160, 0)
 BOX_COLOR = QColor(200, 200, 200)
 GREY = QColor(140, 140, 140)
-DEFAULT_OUT = default_output()   # the workspace's editor-output/ (was ~/Documents/Zax-Ausgabe until 2026-11-02); a package's: zaxeditor.default_output
+DEFAULT_OUT = default_output()   # the workspace's editor-output/ (was ~/Documents/Zax-Ausgabe until 2026-11-02); None in a
+#                                 package until its output folder is chosen
 
 
 # ---- The view ------------------------------------------------------------------------------------------------
@@ -1178,7 +1179,8 @@ class ViewerWindow(QMainWindow):
 
     # --- Export -------------------------------------------------------------------------------------------
     def _export_target(self, title: str, name: str, filt: str) -> Path | None:
-        start = Path(self.settings.value('viewer/export_dir') or DEFAULT_OUT)
+        start = Path(self.settings.value('viewer/export_dir') or self.settings.value('output') or DEFAULT_OUT
+                     or Path.home())
         path, _ = QFileDialog.getSaveFileName(self, title, str(start / name), filt)
         if not path:
             return None

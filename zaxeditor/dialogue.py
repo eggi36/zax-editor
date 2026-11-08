@@ -127,7 +127,7 @@ class DialoguePanel(QWidget):
 
     # --- sources ---------------------------------------------------------------------------
     def _roots(self) -> list[Path]:
-        return [self.win.output_dir()]
+        return self.win.output_roots()
 
     def resources(self) -> rds.Resources | None:
         if self.win.ds is None:
@@ -136,15 +136,19 @@ class DialoguePanel(QWidget):
             self._res = rds.Resources(self.win.ds, self._roots())
         return self._res
 
-    def target(self, script: str) -> Path:
-        """The file the script is saved to: below the output folder, in the spelling of the game data."""
+    def target(self, script: str) -> Path | None:
+        """The file the script is saved to: below the output folder, in the spelling of the game data (None while no
+        output folder is chosen)."""
+        out = self.win.output_dir()
+        if out is None:
+            return None
         rel = f'Levels/{script}.RDS'
         ds = self.win.ds
         if ds is not None:
             name = next((f for f in ds.list('Levels/', '') if f.lower() == rel.lower()), None)
             rel = name or rel
-        existing = rds.find_file(self.win.output_dir(), rel)
-        return existing or self.win.output_dir() / rel
+        existing = rds.find_file(out, rel)
+        return existing or out / rel
 
     # --- selection -------------------------------------------------------------------------
     def set_part(self, part) -> None:
@@ -232,7 +236,8 @@ class DialoguePanel(QWidget):
                                                    'the game over the pack.)').format(pack=pack)
         self.info.setText(translate('dialogue', 'Levels/{script}.RDS – %n label(s). {source}\nSaved to: {target}',
                                     None, len(self.script.items)).format(
-            script=self.script_name, source=src, target=self.target(self.script_name)))
+            script=self.script_name, source=src,
+            target=self.target(self.script_name) or translate('dialogue', '(no output folder chosen yet)')))
         self._update_buttons()
 
     def _used(self) -> dict[str, int]:
@@ -316,7 +321,8 @@ class DialoguePanel(QWidget):
     def _show_portrait(self, rel: str) -> None:
         from .scene import to_pixmap
         try:
-            p = rds.find_file(self.win.output_dir(), rel)
+            out = self.win.output_dir()
+            p = rds.find_file(out, rel) if out is not None else None
             data = p.read_bytes() if p else self.win.ds.read(rel)
             pal = None
             if not rel.lower().endswith('.frm16'):
@@ -444,10 +450,11 @@ class DialoguePanel(QWidget):
             return []
         own = (self.win.source or ('', ''))[1].replace('\\', '/').lower()
         files = {f.lower(): ('data', f) for f in ds.list('Levels/', '.zax')}
-        out_levels = self.win.output_dir() / 'Levels'
-        if out_levels.is_dir():
+        out = self.win.output_dir()
+        out_levels = out / 'Levels' if out is not None else None
+        if out_levels is not None and out_levels.is_dir():
             for p in out_levels.rglob('*.zax'):
-                files[p.relative_to(self.win.output_dir()).as_posix().lower()] = ('file', p)
+                files[p.relative_to(out).as_posix().lower()] = ('file', p)
         needle = label.strip().lower().encode('latin-1', 'replace')
         found = []
         for key, (kind, ref) in sorted(files.items()):
@@ -465,7 +472,7 @@ class DialoguePanel(QWidget):
 
     # --- saving ------------------------------------------------------------------------------
     def save(self) -> bool:
-        if self.script is None or self.script_name is None:
+        if self.script is None or self.script_name is None or self.win.need_output() is None:
             return False
         target = self.target(self.script_name)
         if self.win._inside_data(target):

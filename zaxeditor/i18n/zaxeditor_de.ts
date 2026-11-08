@@ -688,13 +688,42 @@ Er liest die Spieldaten und schreibt nie hinein.</translation>
     </message>
     <message>
         <location filename="../../zaxeditor/app.py"/>
-        <source>Choose output folder</source>
-        <translation>Ausgabeordner wählen</translation>
+        <source>Where shall the editor save your own levels, graphics and Rules.txt?</source>
+        <translation>Wo soll der Editor deine eigenen Level, Grafiken und die Rules.txt speichern?</translation>
     </message>
     <message>
         <location filename="../../zaxeditor/app.py"/>
-        <source>The output folder must not lie inside the game data.</source>
-        <translation>Der Ausgabeordner darf nicht in den Spieldaten liegen.</translation>
+        <source>Suggested: {path}
+
+Any folder outside the game data and outside the editor itself will do. You can change it later in File → Settings.</source>
+        <translation>Vorschlag: {path}
+
+Jeder Ordner außerhalb der Spieldaten und außerhalb des Editors selbst ist möglich. Du kannst ihn später unter Datei → Einstellungen ändern.</translation>
+    </message>
+    <message>
+        <location filename="../../zaxeditor/app.py"/>
+        <source>Use the suggested folder</source>
+        <translation>Vorgeschlagenen Ordner verwenden</translation>
+    </message>
+    <message>
+        <location filename="../../zaxeditor/app.py"/>
+        <source>Choose folder …</source>
+        <translation>Ordner wählen …</translation>
+    </message>
+    <message>
+        <location filename="../../zaxeditor/app.py"/>
+        <source>Later</source>
+        <translation>Später</translation>
+    </message>
+    <message>
+        <location filename="../../zaxeditor/app.py"/>
+        <source>No output folder yet: the editor asks again before it saves anything.</source>
+        <translation>Noch kein Ausgabeordner: Der Editor fragt erneut, bevor er etwas speichert.</translation>
+    </message>
+    <message>
+        <location filename="../../zaxeditor/app.py"/>
+        <source>Choose output folder</source>
+        <translation>Ausgabeordner wählen</translation>
     </message>
     <message>
         <location filename="../../zaxeditor/app.py"/>
@@ -1452,6 +1481,11 @@ Gespeichert wird nach: {target}</numerusform>
             <numerusform>Levels/{script}.RDS – %n Labels. {source}
 Gespeichert wird nach: {target}</numerusform>
         </translation>
+    </message>
+    <message>
+        <location filename="../../zaxeditor/dialogue.py"/>
+        <source>(no output folder chosen yet)</source>
+        <translation>(noch kein Ausgabeordner gewählt)</translation>
     </message>
     <message numerus="yes">
         <location filename="../../zaxeditor/dialogue.py"/>
@@ -11232,6 +11266,42 @@ Durch welche Textur ersetzen?</numerusform>
         <location filename="../../zaxeditor/newleveldlg.py"/>
         <source>File: {path}</source>
         <translation>Datei: {path}</translation>
+    </message>
+</context>
+<context>
+    <name>outputdir</name>
+    <message>
+        <location filename="../../zaxeditor/outputdir.py"/>
+        <source>This folder lies inside the editor itself:
+{path}
+
+An update replaces it, and it may be read-only. Please choose a folder outside it, for example in your documents.</source>
+        <translation>Dieser Ordner liegt im Editor selbst:
+{path}
+
+Ein Update ersetzt ihn, und er ist eventuell schreibgeschützt. Bitte wähle einen Ordner außerhalb, zum Beispiel in deinen Dokumenten.</translation>
+    </message>
+    <message>
+        <location filename="../../zaxeditor/outputdir.py"/>
+        <source>This folder lies inside the game data:
+{path}
+
+The editor never writes into the game data. Please choose another folder.</source>
+        <translation>Dieser Ordner liegt in den Spieldaten:
+{path}
+
+Der Editor schreibt nie in die Spieldaten. Bitte wähle einen anderen Ordner.</translation>
+    </message>
+    <message>
+        <location filename="../../zaxeditor/outputdir.py"/>
+        <source>Nothing can be written into this folder:
+{path}
+
+{error}</source>
+        <translation>In diesen Ordner kann nichts geschrieben werden:
+{path}
+
+{error}</translation>
     </message>
 </context>
 <context>
