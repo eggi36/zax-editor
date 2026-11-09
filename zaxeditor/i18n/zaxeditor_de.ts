@@ -10771,8 +10771,8 @@ Durch welche Textur ersetzen?</numerusform>
     </message>
     <message>
         <location filename="../../zaxtools/levelcheck.py"/>
-        <source>Sequence “{sequence}” of the model “{model}”: {frames} frames cannot be divided among {rotations} rotations. The game divides by the rotations and ends with &quot;There are not an equal number of frames per rotation…&quot; when it loads the sequence by its name.</source>
-        <translation>Sequenz „{sequence}“ des Modells „{model}“: {frames} Bilder lassen sich nicht auf {rotations} Drehungen verteilen. Das Spiel teilt durch die Drehungen und endet mit &quot;There are not an equal number of frames per rotation…&quot;, wenn es die Sequenz über ihren Namen lädt.</translation>
+        <source>Sequence “{sequence}” of the model “{model}”: {frames} frames cannot be divided among {rotations} rotations. The game loads such a sequence (its check for this is never reached), the frames may fall on the wrong rotations.</source>
+        <translation>Sequenz „{sequence}“ des Modells „{model}“: {frames} Bilder lassen sich nicht auf {rotations} Drehungen verteilen. Das Spiel lädt so eine Sequenz (seine Prüfung dafür wird nie erreicht), die Bilder können auf die falschen Drehungen fallen.</translation>
     </message>
     <message>
         <location filename="../../zaxtools/levelcheck.py"/>
