@@ -43,6 +43,8 @@ Shortcuts are written for Windows; on macOS **Ctrl** is **⌘** and **Alt** is *
 | [ and ] | Smaller / larger brush |
 | B or Esc | Stop painting |
 
+**Mod ground textures (port only).** Ground → Offer mod ground textures (TGA, also in File → Settings) adds the TGA files of `Textures/` (in the game data or the output folder, `<output>/Textures/<name>.tga`) to the texture choice, in a group of their own after the shipped textures, in the order the port appends them. A level using one needs the port (zax-redone) with `[Fix] GroundTga=1` and `GroundTgaAppend=1`: the original game drops every shipped ground texture as soon as one TGA lies in `Data/Textures` and ends while loading such a level. The ground panel marks these textures and the level check warns about them. The port reads only TGAs of 128×128 with 24 or 32 bits (raw or RLE); others show black, in the port and in the editor.
+
 New objects: in the Models panel double click a model (placed in the middle of the view) or drag it onto the map.
 
 | Key | Command | Key | Command |
@@ -63,7 +65,7 @@ New objects: in the Models panel double click a model (placed in the middle of t
 2. zax-formats next to this repository (or `ZAX_FORMATS`).
 3. Point `ZAX_DATA` to the game data (the `Data.dat` of an installed game, or an unpacked `Data` folder), or choose it in the editor.
 4. Start the editor: `python -m zaxeditor` (on macOS also by double-clicking `Zax-Editor.command`); the model viewer: `python -m zaxeditor.viewer`.
-5. Check the UI texts: `python tools/selftest_ui.py` – expected: 0 failures; the format library's self-test is zax-formats' `tools/selftest.py`.
+5. Check the UI texts: `python tools/selftest_ui.py` – expected: 0 failures; the mod ground textures: `python tools/selftest_ground_tga.py` (no game data needed; `--data` adds the real shipped list) – expected: 0 failures; the format library's self-test is zax-formats' `tools/selftest.py`.
 6. `git config core.hooksPath tools/git-hooks` (the pre-push hook: no game data, no private names or paths).
 
 The game data is not included and must never go into the repository: every player brings the original assets from their own copy. The editor saves into its own output folder, never into the game data.

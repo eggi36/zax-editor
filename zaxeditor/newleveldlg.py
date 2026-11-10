@@ -15,6 +15,7 @@ from zaxtools import newlevel
 
 from .groundtool import THUMB, TexturePicker, thumbnail
 from .i18n import translate
+from .tgaground import SWITCHES
 
 SIZE_RANGE = (640, 8192)    # originals: 760 to 8000 [verified]
 
@@ -109,6 +110,9 @@ class NewLevelDialog(QDialog):
         self.tex.clear()
         for n in names:
             it = QListWidgetItem(n)
+            if getattr(self.assets, 'is_tga', lambda _n: False)(n):
+                it.setToolTip(translate('groundtool', 'Mod ground texture (TGA): the level needs the port with '
+                                                      '{switches}.').format(switches=SWITCHES))
             if icon := thumbnail(self.assets, n):
                 it.setIcon(icon)
             self.tex.addItem(it)

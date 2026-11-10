@@ -25,7 +25,7 @@ from PySide6.QtWidgets import (QCheckBox, QComboBox, QDialog, QDialogButtonBox, 
 
 from zaxtools import rds, transition
 
-from . import msgbox
+from . import msgbox, tgaground
 from .dialogue import dialog_fields
 from .i18n import translate
 
@@ -225,6 +225,14 @@ class GameTest:
         visit(self.win.level.parts)
         return out
 
+    def own_tgas(self) -> list[tuple[Path, str]]:
+        """(file, target below the game folder) of the mod ground textures (``Textures/*.tga`` of the output folder) the
+        level's ground uses. The run starts the original game through the launcher, which ends on such a level (the
+        level check warns, zaxeditor/tgaground.py); the port needs its switches GroundTga and GroundTgaAppend."""
+        out = self.win.output_dir()
+        return [(f, 'Data/' + f.relative_to(out).as_posix())
+                for f in tgaground.output_tgas(self.win.level, self.win.ds, [out])]
+
     def run(self) -> None:
         win = self.win
         if win.level is None or win.source is None:
@@ -269,7 +277,7 @@ class GameTest:
             args += ['--difficulty', difficulty]
         if win.settings.value('gametest/original', False, type=bool):
             args += ['--arg', '/Original']
-        for src, to in self.scripts() + self.own_models():
+        for src, to in self.scripts() + self.own_models() + self.own_tgas():
             args += ['--file', f'{src}={to}']
         if share:
             args += ['--share', share]

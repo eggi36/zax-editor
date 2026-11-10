@@ -70,6 +70,17 @@ class SettingsDialog(QDialog):
         form.addRow(translate('settingsdlg', 'Language (at the next start)'), self.language)
         lay.addWidget(ui)
 
+        port = QGroupBox(translate('settingsdlg', 'Port only'))
+        v = QVBoxLayout(port)
+        action = win.ground_tga_action          # Ground → Offer mod ground textures (zaxeditor/tgaground.py)
+        box = QCheckBox(action.text())
+        box.setToolTip(action.toolTip())
+        box.setChecked(action.isChecked())
+        box.toggled.connect(action.setChecked)
+        action.toggled.connect(box.setChecked)
+        v.addWidget(box)
+        lay.addWidget(port)
+
         lay.addStretch(1)
         bb = QDialogButtonBox(QDialogButtonBox.Close)
         bb.rejected.connect(self.close)
