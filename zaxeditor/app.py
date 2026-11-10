@@ -46,6 +46,8 @@ from .dialogue import DialoguePanel
 from .gametest import GameTest
 from . import polyedit
 from .groundtool import GroundPanel, GroundTool
+from . import tgaground
+from .tgaground import GroundAssets
 from .icons import app_icon, follow_theme, set_icon
 from .newleveldlg import NewLevelDialog
 from .transitiondlg import TransitionDialog
@@ -621,6 +623,16 @@ class MainWindow(QMainWindow):
                                  icon='ground')
         act(m, translate('app', 'Smaller brush'), lambda: self._brush(-1), '[')
         act(m, translate('app', 'Larger brush'), lambda: self._brush(1), ']')
+        m.addSeparator()
+        self.ground_tga_action = act(m, translate('app', 'Offer mod ground textures (TGA, port only)'),
+                                     self._set_ground_tga, checkable=True,
+                                     checked=self.settings.value(tgaground.SETTING, False, type=bool))
+        self.ground_tga_action.setToolTip(translate(
+            'app', 'Adds the TGA files of Textures/ (game data and output folder) to the texture choice, in a group '
+                   'of their own after the shipped textures. A level using one needs the port with {switches}: the '
+                   'original game drops all shipped ground textures as soon as a TGA lies in Data/Textures, and the '
+                   'level check warns about it.').format(switches=tgaground.SWITCHES))
+        m.setToolTipsVisible(True)
 
         m = self.menuBar().addMenu(translate('app', 'View'))
         a_zin = act(m, translate('app', 'Zoom in'), lambda: self.view.zoom(1.25), QKeySequence.ZoomIn, icon='zoom_in')
@@ -821,7 +833,9 @@ class MainWindow(QMainWindow):
                                                        '“Data” or the Data.dat of the game.').format(path=path))
             return False
         self.ds = ds
-        self.assets = Assets(self.ds)
+        # Assets with the port's TGA ground textures (zaxeditor/tgaground.py): drawn as the port shows them
+        self.assets = GroundAssets(self.ds, self.output_roots)
+        self.assets.offer_tga = self.settings.value(tgaground.SETTING, False, type=bool)
         self.sprites = SpriteCache(self.assets)
         self.props.dialogs = DialogScripts(self.ds, self.output_roots())
         self.props.ds = self.ds
@@ -1167,6 +1181,8 @@ class MainWindow(QMainWindow):
         QApplication.processEvents()
         try:
             level = Level.from_bytes(data)
+            if isinstance(self.assets, GroundAssets):
+                self.assets.refresh_tga()       # TGAs added to the output folder in the meantime
             scene = MapScene(level, self.assets, self.sprites)
             for k, a in self.filter_actions.items():
                 scene.filters[k] = a.isChecked()
@@ -1312,6 +1328,7 @@ class MainWindow(QMainWindow):
         QApplication.setOverrideCursor(Qt.WaitCursor)
         try:
             findings = levelcheck.check(self.level, self._check_ctx, rel)
+            findings += tgaground.check(self.level, self.ds, self.output_roots())
         finally:
             QApplication.restoreOverrideCursor()
         skipped = self._check_ctx.skipped
@@ -2156,6 +2173,12 @@ class MainWindow(QMainWindow):
                                                           '= pick up the texture'), 6000)
         else:
             self.view.set_tool(None)
+
+    def _set_ground_tga(self, on: bool) -> None:
+        """Ground → Offer mod ground textures (TGA): the opt-in of zaxeditor/tgaground.py (remembered)."""
+        self.settings.setValue(tgaground.SETTING, on)
+        if self.assets is not None:
+            self.assets.offer_tga = on
 
     def _brush(self, d: int) -> None:
         s = self.ground_panel.size

@@ -307,6 +307,16 @@ Nur Löschen reicht nicht: eine ältere Minimap – die mitgelieferte in Data.da
     </message>
     <message>
         <location filename="../../zaxeditor/app.py"/>
+        <source>Offer mod ground textures (TGA, port only)</source>
+        <translation>Mod-Bodentexturen anbieten (TGA, nur Port)</translation>
+    </message>
+    <message>
+        <location filename="../../zaxeditor/app.py"/>
+        <source>Adds the TGA files of Textures/ (game data and output folder) to the texture choice, in a group of their own after the shipped textures. A level using one needs the port with {switches}: the original game drops all shipped ground textures as soon as a TGA lies in Data/Textures, and the level check warns about it.</source>
+        <translation>Nimmt die TGA-Dateien aus Textures/ (Spieldaten und Ausgabeordner) in die Texturauswahl auf, in einer eigenen Gruppe nach den mitgelieferten Texturen. Ein Level, das eine davon nutzt, braucht den Port mit {switches}: Das Originalspiel verliert alle mitgelieferten Bodentexturen, sobald eine TGA in Data/Textures liegt, und die Levelprüfung warnt davor.</translation>
+    </message>
+    <message>
+        <location filename="../../zaxeditor/app.py"/>
         <source>View</source>
         <translation>Ansicht</translation>
     </message>
@@ -9803,12 +9813,53 @@ Mit „Speichern unter …“ dort speichern.</translation>
     </message>
     <message>
         <location filename="../../zaxeditor/groundtool.py"/>
+        <source>Mod textures (TGA), port only</source>
+        <translation>Mod-Texturen (TGA), nur Port</translation>
+    </message>
+    <message>
+        <location filename="../../zaxeditor/groundtool.py"/>
+        <source>The port with {switches} appends these names after the shipped textures. The original game shows no shipped ground texture as soon as a TGA lies in Data/Textures, and ends on a level using one.</source>
+        <translation>Der Port mit {switches} hängt diese Namen hinter die mitgelieferten Texturen an. Das Originalspiel zeigt keine mitgelieferte Bodentextur mehr, sobald eine TGA in Data/Textures liegt, und beendet sich bei einem Level, das eine davon nutzt.</translation>
+    </message>
+    <message>
+        <location filename="../../zaxeditor/groundtool.py"/>
+        <source>{name}  (TGA the port cannot read: black)</source>
+        <translation>{name}  (TGA, die der Port nicht lesen kann: schwarz)</translation>
+    </message>
+    <message>
+        <location filename="../../zaxeditor/groundtool.py"/>
+        <source>The port reads only TGAs of 128×128 with 24 or 32 bits, raw or RLE.</source>
+        <translation>Der Port liest nur TGAs mit 128×128, 24 oder 32 Bit, unkomprimiert oder RLE.</translation>
+    </message>
+    <message>
+        <location filename="../../zaxeditor/groundtool.py"/>
+        <location filename="../../zaxeditor/viewer.py"/>
+        <source>{name}  (TGA)</source>
+        <translation>{name}  (TGA)</translation>
+    </message>
+    <message>
+        <location filename="../../zaxeditor/groundtool.py"/>
+        <source>{file}
+Only for the port with {switches}.</source>
+        <translation>{file}
+Nur für den Port mit {switches}.</translation>
+    </message>
+    <message>
+        <location filename="../../zaxeditor/groundtool.py"/>
         <source>New textures go to the end of the list; the existing
 ground thus stays unchanged. Choose several with ⌘/⇧.
 Textures already in the level are missing here.</source>
         <translation>Neue Texturen kommen ans Ende der Liste; der vorhandene
 Boden bleibt so unverändert. Mehrere mit ⌘/⇧ wählen.
 Bereits im Level vorhandene Texturen fehlen hier.</translation>
+    </message>
+    <message numerus="yes">
+        <location filename="../../zaxeditor/groundtool.py"/>
+        <source>%n mod ground texture(s) (TGA) not shown: Ground → Offer mod ground textures (port only).</source>
+        <translation>
+            <numerusform>%n Mod-Bodentextur (TGA) nicht gezeigt: Boden → Mod-Bodentexturen anbieten (nur Port).</numerusform>
+            <numerusform>%n Mod-Bodentexturen (TGA) nicht gezeigt: Boden → Mod-Bodentexturen anbieten (nur Port).</numerusform>
+        </translation>
     </message>
     <message>
         <location filename="../../zaxeditor/groundtool.py"/>
@@ -9867,6 +9918,11 @@ daher die Übergänge.</translation>
     </message>
     <message>
         <location filename="../../zaxeditor/groundtool.py"/>
+        <source>(TGA, port only)</source>
+        <translation>(TGA, nur Port)</translation>
+    </message>
+    <message>
+        <location filename="../../zaxeditor/groundtool.py"/>
         <source>(unused)</source>
         <translation>(ungenutzt)</translation>
     </message>
@@ -9877,6 +9933,12 @@ daher die Übergänge.</translation>
             <numerusform>%n Rasterpunkt</numerusform>
             <numerusform>%n Rasterpunkte</numerusform>
         </translation>
+    </message>
+    <message>
+        <location filename="../../zaxeditor/groundtool.py"/>
+        <location filename="../../zaxeditor/newleveldlg.py"/>
+        <source>Mod ground texture (TGA): the level needs the port with {switches}.</source>
+        <translation>Mod-Bodentextur (TGA): Das Level braucht den Port mit {switches}.</translation>
     </message>
     <message>
         <location filename="../../zaxeditor/groundtool.py"/>
@@ -10286,6 +10348,11 @@ Durch welche Textur ersetzen?</numerusform>
 </context>
 <context>
     <name>levelcheck</name>
+    <message>
+        <location filename="../../zaxeditor/tgaground.py"/>
+        <source>Mod ground texture (TGA): needs the port</source>
+        <translation>Mod-Bodentextur (TGA): braucht den Port</translation>
+    </message>
     <message>
         <location filename="../../zaxtools/levelcheck.py"/>
         <source>Error</source>
@@ -11841,6 +11908,11 @@ zu wechseln. Die genannten Namen sind Objekte jenes Levels.</translation>
     </message>
     <message>
         <location filename="../../zaxeditor/settingsdlg.py"/>
+        <source>Port only</source>
+        <translation>Nur Port</translation>
+    </message>
+    <message>
+        <location filename="../../zaxeditor/settingsdlg.py"/>
         <source>(none)</source>
         <translation>(keine)</translation>
     </message>
@@ -11923,6 +11995,19 @@ Doppelklick/Return = fertig, Esc = abbrechen.</translation>
         <location filename="../../zaxeditor/surfacedlg.py"/>
         <source>Draw</source>
         <translation>Zeichnen</translation>
+    </message>
+</context>
+<context>
+    <name>tgaground</name>
+    <message>
+        <location filename="../../zaxeditor/tgaground.py"/>
+        <source>“{name}” is a mod ground texture (Textures/{name}.tga). The level needs the port with {switches}. The original game drops all shipped ground textures as soon as a TGA lies in Data/Textures and ends while loading this level.</source>
+        <translation>„{name}“ ist eine Mod-Bodentextur (Textures/{name}.tga). Das Level braucht den Port mit {switches}. Das Originalspiel verliert alle mitgelieferten Bodentexturen, sobald eine TGA in Data/Textures liegt, und beendet sich beim Laden dieses Levels.</translation>
+    </message>
+    <message>
+        <location filename="../../zaxeditor/tgaground.py"/>
+        <source>“{name}” is a mod ground texture whose TGA the port cannot read (it needs 128×128, 24 or 32 bits, raw or RLE): the port shows it black. The level needs the port with {switches}; the original game ends while loading it.</source>
+        <translation>„{name}“ ist eine Mod-Bodentextur, deren TGA der Port nicht lesen kann (er braucht 128×128, 24 oder 32 Bit, unkomprimiert oder RLE): Der Port zeigt sie schwarz. Das Level braucht den Port mit {switches}; das Originalspiel beendet sich beim Laden.</translation>
     </message>
 </context>
 <context>

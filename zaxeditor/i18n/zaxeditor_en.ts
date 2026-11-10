@@ -188,6 +188,14 @@ Saved to: {target}</numerusform>
     <name>groundtool</name>
     <message numerus="yes">
         <location filename="../../zaxeditor/groundtool.py"/>
+        <source>%n mod ground texture(s) (TGA) not shown: Ground → Offer mod ground textures (port only).</source>
+        <translation>
+            <numerusform>%n mod ground texture (TGA) not shown: Ground → Offer mod ground textures (port only).</numerusform>
+            <numerusform>%n mod ground textures (TGA) not shown: Ground → Offer mod ground textures (port only).</numerusform>
+        </translation>
+    </message>
+    <message numerus="yes">
+        <location filename="../../zaxeditor/groundtool.py"/>
         <source>%n grid point(s)</source>
         <translation>
             <numerusform>%n grid point</numerusform>

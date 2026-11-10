@@ -35,10 +35,11 @@ from zaxtools.exeschema import Schema, find_exe
 from zaxtools.modelhead import DecodeError, ModelHead
 from zaxtools.render import Assets
 
-from . import default_output, i18n, msgbox
+from . import default_output, i18n, msgbox, tgaground
 from .i18n import QT_TRANSLATE_NOOP, translate
 from .icons import app_icon, follow_theme, set_icon, style_splitter
 from .props import PropertyPanel
+from .tgaground import GroundAssets
 from .viewerbrowser import ItemBrowser, to_qimage
 
 APP = 'Zax-Editor'                  # the editor's settings (game data, Zax.exe, language pack)
@@ -685,7 +686,7 @@ class ViewerWindow(QMainWindow):
             self.head = ModelHead(self.schema) if self.schema is not None else None
             self.props.schema = self.schema
             self.props.ds = self.ds
-            self.assets = Assets(self.ds)
+            self.assets = GroundAssets(self.ds, self._output_roots)
             try:
                 self.pal = preview.palette(self.ds)
             except OSError:
@@ -697,11 +698,21 @@ class ViewerWindow(QMainWindow):
             for rel in self.ds.list('Cache/Textures/', '.frm16'):
                 name = rel[len('Cache/Textures/'):-len('.frm16')]
                 self.texture.addItem(name, name)
+            if self.settings.value(tgaground.SETTING, False, type=bool):
+                # the editor's opt-in (Ground → Offer mod ground textures): the TGA names after the shipped ones
+                for name in tgaground.appended_names(self.ds, self._output_roots()):
+                    self.texture.addItem(translate('groundtool', '{name}  (TGA)').format(name=name), name)
             self.texture.setCurrentIndex(max(0, self.texture.findData(self.settings.value('viewer/texture', ''))))
             self.texture.blockSignals(False)
             self.texture.setVisible(self.bg.currentData() == 'texture')
         finally:
             QApplication.restoreOverrideCursor()
+
+    def _output_roots(self) -> list[Path]:
+        """The editor's output folder (its TGA ground textures), as the editor's setting names it."""
+        v = self.settings.value('output')
+        out = Path(v) if v else DEFAULT_OUT
+        return [out] if out is not None else []
 
     def _default_sequence(self, item: preview.Item) -> str | None:
         if item.kind != 'model' or self.catalog is None:

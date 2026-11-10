@@ -19,7 +19,7 @@ from PySide6.QtWidgets import (QAbstractItemView, QDialog, QDialogButtonBox, QGr
 
 from zaxtools.level import Level
 
-from . import groundedit
+from . import groundedit, tgaground
 from .i18n import translate
 from .scene import to_pixmap
 
@@ -77,7 +77,9 @@ class TextureListCommand(QUndoCommand):
 
 
 class TexturePicker(QDialog):
-    """Selection from all textures under Cache/Textures (multiple selection, search)."""
+    """Selection from all textures under Cache/Textures (multiple selection, search). With the opt-in of the mod ground
+    textures (``GroundAssets.offer_tga``, Ground → Offer mod ground textures) the TGA names of ``Textures/`` follow in
+    a group of their own, in the order the port appends them (``zaxeditor.tgaground``)."""
 
     def __init__(self, parent, assets, present: list[str]):
         super().__init__(parent)
@@ -90,11 +92,11 @@ class TexturePicker(QDialog):
         self.list.setIconSize(QSize(THUMB, THUMB))
         self.list.setSelectionMode(QAbstractItemView.ExtendedSelection)
         have = {n.lower() for n in present}
-        names = sorted(f[len(TEXTURES):-len('.frm16')] for f in assets.ds.list(TEXTURES, '.frm16'))
-        for name in names:
+        shipped = tgaground.shipped_names(assets.ds)
+        for name in shipped:
             if name.lower() in have:
                 continue
-            it = QListWidgetItem(name)
+            it = self._item(name)
             tex = assets.texture(name)
             if tex is not None and tex.shape[:2] != (128, 128):
                 # the game reads ground textures as 128x128: a smaller one appears as torn stripes
@@ -106,6 +108,39 @@ class TexturePicker(QDialog):
             if icon := thumbnail(assets, name):
                 it.setIcon(icon)
             self.list.addItem(it)
+        self.header = None
+        tga = []
+        if isinstance(assets, tgaground.GroundAssets):
+            assets.refresh_tga()
+            tga = [n for n in tgaground.appended_names(assets.ds, assets.tga_roots(), shipped) if n.lower() not in have]
+        offer = bool(getattr(assets, 'offer_tga', False))
+        if tga and offer:
+            self.header = QListWidgetItem(translate('groundtool', 'Mod textures (TGA), port only'))
+            self.header.setFlags(Qt.NoItemFlags)
+            f = self.header.font()
+            f.setBold(True)
+            self.header.setFont(f)
+            self.header.setToolTip(translate('groundtool', 'The port with {switches} appends these names after the '
+                                                           'shipped textures. The original game shows no shipped ground '
+                                                           'texture as soon as a TGA lies in Data/Textures, and ends on a '
+                                                           'level using one.').format(switches=tgaground.SWITCHES))
+            self.list.addItem(self.header)
+            for name in tga:
+                it = self._item(name)
+                src = assets.tga()[name.lower()][1]
+                data = tgaground.read(src, assets.ds)
+                if data is None or not tgaground.usable(data):
+                    it.setText(translate('groundtool', '{name}  (TGA the port cannot read: black)').format(name=name))
+                    it.setFlags(it.flags() & ~Qt.ItemIsSelectable & ~Qt.ItemIsEnabled)
+                    it.setToolTip(translate('groundtool', 'The port reads only TGAs of 128×128 with 24 or 32 bits, raw '
+                                                          'or RLE.'))
+                else:
+                    it.setText(translate('groundtool', '{name}  (TGA)').format(name=name))
+                    it.setToolTip(translate('groundtool', '{file}\nOnly for the port with {switches}.').format(
+                        file=src, switches=tgaground.SWITCHES))
+                    if icon := thumbnail(assets, name):
+                        it.setIcon(icon)
+                self.list.addItem(it)
         self.search.textChanged.connect(self._filter)
         self.list.itemDoubleClicked.connect(self.accept)
         bb = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel)
@@ -115,17 +150,37 @@ class TexturePicker(QDialog):
                                               'ground thus stays unchanged. Choose several with ⌘/⇧.\n'
                                               'Textures already in the level are missing here.'))
         hint.setStyleSheet('color: gray')
-        for w in (self.search, self.list, hint, bb):
+        widgets = [self.search, self.list, hint]
+        if tga and not offer:
+            off = QLabel(translate('groundtool', '%n mod ground texture(s) (TGA) not shown: Ground → Offer mod ground '
+                                                 'textures (port only).', None, len(tga)))
+            off.setWordWrap(True)
+            off.setStyleSheet('color: gray')
+            widgets.append(off)
+        for w in widgets + [bb]:
             lay.addWidget(w)
+
+    @staticmethod
+    def _item(name: str) -> QListWidgetItem:
+        it = QListWidgetItem(name)
+        it.setData(Qt.UserRole, name)
+        return it
 
     def _filter(self, text: str) -> None:
         t = text.lower()
+        tga_shown = False
         for i in range(self.list.count()):
             it = self.list.item(i)
+            if it is self.header:
+                continue
             it.setHidden(t not in it.text().lower())
+            tga_shown |= self.header is not None and i > self.list.row(self.header) and not it.isHidden()
+        if self.header is not None:
+            self.header.setHidden(not tga_shown)
 
     def chosen(self) -> list[str]:
-        return [it.text() for it in self.list.selectedItems() if not it.isHidden()]
+        return [it.data(Qt.UserRole) for it in self.list.selectedItems()
+                if not it.isHidden() and it.data(Qt.UserRole)]
 
 
 class GroundPanel(QWidget):
@@ -178,9 +233,16 @@ class GroundPanel(QWidget):
         self.list.clear()
         names = level.ground_textures
         used = groundedit.usage(level.elevations, len(names))
+        is_tga = getattr(assets, 'is_tga', lambda _n: False)
         for i, name in enumerate(names):
-            it = QListWidgetItem(f'{i}  {name}' + ('' if used[i] else '  ' + translate('groundtool', '(unused)')))
-            it.setToolTip(name + '\n' + translate('groundtool', '%n grid point(s)', None, int(used[i])))
+            tga = is_tga(name)
+            it = QListWidgetItem(f'{i}  {name}' + ('  ' + translate('groundtool', '(TGA, port only)') if tga else '')
+                                 + ('' if used[i] else '  ' + translate('groundtool', '(unused)')))
+            tip = name + '\n' + translate('groundtool', '%n grid point(s)', None, int(used[i]))
+            if tga:
+                tip += '\n' + translate('groundtool', 'Mod ground texture (TGA): the level needs the port with '
+                                                      '{switches}.').format(switches=tgaground.SWITCHES)
+            it.setToolTip(tip)
             if icon := thumbnail(assets, name):
                 it.setIcon(icon)
             self.list.addItem(it)
