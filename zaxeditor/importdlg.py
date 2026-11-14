@@ -4,6 +4,7 @@ folder (zaxtools.imageimport). The game data and the language pack are never wri
 """
 from __future__ import annotations
 
+import html
 import re
 from pathlib import Path
 
@@ -332,7 +333,7 @@ class ImportDialog(QDialog):
             return out
         if not self.images:
             return [translate('importdlg', 'Choose the PNG files first.')]
-        return ii.check(self.spec())             # English texts of zaxtools (as the level check's sources)
+        return ii.check(self.spec())             # zaxtools texts, translated through zaxtools.i18n
 
     def _update(self, *_):
         self._draw_preview()
@@ -363,10 +364,10 @@ class ImportDialog(QDialog):
             if spec.texture:
                 lines.append(translate('importdlg', 'A texture: written uncompressed and opaque, as the game\'s '
                                                     'surfaces and ground need it.'))
-            for n in ii.notes(spec):             # English texts of zaxtools, like the problems
-                lines.append('<span style="color:#d08000">' + n + '</span>')
+            for n in ii.notes(spec):             # zaxtools texts, translated like the problems
+                lines.append('<span style="color:#d08000">' + html.escape(n) + '</span>')
         for p in probs:
-            lines.append('<span style="color:#d04040">' + p + '</span>')
+            lines.append('<span style="color:#d04040">' + html.escape(p) + '</span>')
         self.info.setText('<br>'.join(lines))
         self.buttons.button(QDialogButtonBox.Ok).setEnabled(not probs)
 

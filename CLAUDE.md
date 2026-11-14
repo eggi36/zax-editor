@@ -86,6 +86,8 @@ zaxtools/          (in zax-formats since 2026-11-07) library (numpy + Pillow onl
                    additions to exe texts and notes on 46 wrong or incomplete exe texts, derived
                    from zax-decomp/reimpl/src (evidence level + consumer addresses per field)
   i18n.py          translation hook for texts zaxtools makes for a UI (English; the editor installs Qt's translate)
+  safepath.py      guards for writing: names from levels/scripts as safe relative paths, game files of any edition
+                   read-only, atomic writes (temporary file + os.replace)
   levelcheck.py    level check: findings (severity, object, field, explanation, source) for what makes the game
                    end/hang (zax-decomp/docs/ORIGINAL_BUGS.md group 2) and what has no effect in the game
   header.py        level header (CLayerSaveData) for the settings view: groups, hidden/read-only fields, fields
@@ -147,7 +149,8 @@ zaxeditor/         desktop editor (PySide6), start: python -m zaxeditor ["Levels
                    zaxeditor_de.ts (German), zaxeditor_en.ts (English plural forms) and their compiled .qm (committed);
                    update.py: python -m zaxeditor.i18n.update [--new CODE] extracts the texts (ast) and compiles
 tools/             (selftest_ui.py here, the rest in zax-formats since 2026-11-07)
-  selftest_ui.py   section 9 of the self-test: the UI translations (.ts complete, .qm current, no German literal)
+  selftest_ui.py   section 9 of the self-test: the UI translations (.ts complete, .qm current, no German literal) and
+                   the write guards (game files read-only, derived paths in the output folder, label rename undo)
   selftest_ground_tga.py  the mod ground textures (step 41): listing, reading, drawing, level check, texture choice
   package_macos.sh / package_windows.sh   test packages (README "Packages"): the macOS app (PyInstaller, ad hoc
                    signed) and the portable Windows folder (embeddable Python + wheels, assembled on the Mac); their

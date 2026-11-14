@@ -27,7 +27,7 @@ from PySide6.QtWidgets import (QApplication, QCheckBox, QComboBox, QDockWidget, 
                                QVBoxLayout, QWidget)
 
 from zaxtools import font as fontmod
-from zaxtools import mdl, preview
+from zaxtools import mdl, preview, safepath
 from zaxtools import textformat as tf
 from zaxtools.catalog import Catalog
 from zaxtools.datasource import DataSource
@@ -35,7 +35,7 @@ from zaxtools.exeschema import Schema, find_exe
 from zaxtools.modelhead import DecodeError, ModelHead
 from zaxtools.render import Assets
 
-from . import default_output, i18n, msgbox, tgaground
+from . import default_output, i18n, msgbox, outputdir, tgaground
 from .i18n import QT_TRANSLATE_NOOP, translate
 from .icons import app_icon, follow_theme, set_icon, style_splitter
 from .props import PropertyPanel
@@ -1204,13 +1204,8 @@ class ViewerWindow(QMainWindow):
         return target
 
     def _inside_data(self, p: Path) -> bool:
-        root = Path(self.ds.root).resolve()
-        game = root.parent if root.is_file() else root
-        try:
-            p.resolve().relative_to(game)
-            return True
-        except ValueError:
-            return False
+        """The configured game data (its game folder) or any game installation (``outputdir.read_only``)."""
+        return outputdir.read_only(p, self.ds.root, self.ds.language_pack)
 
     def _base_name(self) -> str:
         stem = (self.view.name.rsplit('/', 1)[-1] if self.view else 'export')
@@ -1317,7 +1312,7 @@ class ViewerWindow(QMainWindow):
         except ValueError as e:
             msgbox.warning(self, APP, translate('viewer', 'Cannot be encoded: {error}').format(error=e))
             return
-        target.write_bytes(data)
+        safepath.atomic_write(target, data)
         self._saved(target)
 
     def export_frm_file(self) -> None:
@@ -1338,7 +1333,7 @@ class ViewerWindow(QMainWindow):
         except ValueError as e:
             msgbox.warning(self, APP, translate('viewer', 'Cannot be encoded: {error}').format(error=e))
             return
-        target.write_bytes(data)
+        safepath.atomic_write(target, data)
         self._saved(target)
 
     def closeEvent(self, e):

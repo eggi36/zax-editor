@@ -11,12 +11,12 @@ from __future__ import annotations
 from pathlib import Path
 
 from PySide6.QtCore import Qt
-from PySide6.QtGui import QBrush, QColor
+from PySide6.QtGui import QBrush, QColor, QUndoCommand
 from PySide6.QtWidgets import (QComboBox, QHBoxLayout, QInputDialog, QLabel, QLineEdit, QListWidget,
                                QListWidgetItem, QMessageBox, QPlainTextEdit, QPushButton, QSplitter, QVBoxLayout,
                                QWidget)
 
-from zaxtools import frm, rds, textformat as tf
+from zaxtools import frm, rds, safepath, textformat as tf
 
 from . import msgbox
 from .i18n import translate
@@ -44,6 +44,37 @@ def dialog_fields(level) -> list[tuple[object, tf.Node, tf.Entry, tf.Entry]]:
 
 def same_script(a: str, b: str) -> bool:
     return a.replace('\\', '/').strip().lower() == b.replace('\\', '/').strip().lower()
+
+
+class RenameLabelCommand(QUndoCommand):
+    """Rename a label of a script and the level's ``Line=`` fields that name it, as one undo step (undoing only the
+    fields would leave the actions naming a label the script no longer has). The script is the one the panel shows
+    under that name; after another script was opened in between, the panel opens it again (asking about unsaved
+    changes as usual) before it renames the label back."""
+
+    def __init__(self, panel: 'DialoguePanel', script_name: str, old: str, new: str, edits, text: str):
+        super().__init__(text)
+        self.panel, self.script_name, self.old, self.new = panel, script_name, old, new
+        self.fields = MultiEditCommand(text, edits, panel.win._part_changed) if edits else None
+
+    def _rename(self, frm_: str, to: str) -> None:
+        panel = self.panel
+        script = panel.script_for(self.script_name)
+        if script is not None and script.find(frm_) is not None:
+            other = script.find(to)
+            if other is None or other is script.find(frm_):
+                script.rename(frm_, to)
+                panel.label_renamed(to)
+
+    def redo(self):
+        self._rename(self.old, self.new)
+        if self.fields is not None:
+            self.fields.redo()
+
+    def undo(self):
+        self._rename(self.new, self.old)
+        if self.fields is not None:
+            self.fields.undo()
 
 
 class DialoguePanel(QWidget):
@@ -140,7 +171,7 @@ class DialoguePanel(QWidget):
         """The file the script is saved to: below the output folder, in the spelling of the game data (None while no
         output folder is chosen)."""
         out = self.win.output_dir()
-        if out is None:
+        if out is None or safepath.relative_problem(script) is not None:
             return None
         rel = f'Levels/{script}.RDS'
         ds = self.win.ds
@@ -237,8 +268,14 @@ class DialoguePanel(QWidget):
         self.info.setText(translate('dialogue', 'Levels/{script}.RDS – %n label(s). {source}\nSaved to: {target}',
                                     None, len(self.script.items)).format(
             script=self.script_name, source=src,
-            target=self.target(self.script_name) or translate('dialogue', '(no output folder chosen yet)')))
+            target=self.target(self.script_name) or self._no_target(self.script_name)))
         self._update_buttons()
+
+    def _no_target(self, script: str) -> str:
+        why = safepath.relative_problem(script)
+        if why is not None:
+            return translate('dialogue', '(nowhere: the script name is no path below Levels/, {why})').format(why=why)
+        return translate('dialogue', '(no output folder chosen yet)')
 
     def _used(self) -> dict[str, int]:
         """Label (lower case) -> number of dialogue actions of the level naming it in this script."""
@@ -355,10 +392,25 @@ class DialoguePanel(QWidget):
             return None
         return text
 
+    def _checked_body(self, text: str) -> str | None:
+        """``_checked_text`` plus the lines the game would not read as text (``rds.structure_lines``)."""
+        if self._checked_text(text) is None:
+            return None
+        bad = rds.structure_lines(text)
+        if bad:
+            msgbox.warning(self, APP, translate('dialogue', 'A line of the text begins with “:” or “//”:\n{line}\n\n'
+                                                            'The game reads a line beginning with “:” as a new label '
+                                                            'and skips a line beginning with “//”; the script format '
+                                                            'has no way to escape them. Put a space or another '
+                                                            'character in front, or reword the line.').format(
+                line=bad[0]))
+            return None
+        return text
+
     def apply_text(self) -> None:
         if self.current is None:
             return
-        text = self._checked_text(self.text.toPlainText())
+        text = self._checked_body(self.text.toPlainText())
         if text is None:
             return
         self.script.set_text(self.current.name, text)
@@ -435,13 +487,25 @@ class DialoguePanel(QWidget):
         box.exec()
         if box.clickedButton() is not ok:
             return
-        self.script.rename(old, new)
-        if edits:
-            self.win.undo.push(MultiEditCommand(
-                translate('dialogue', 'Rename label “{old}” (%n reference(s))', None, len(edits)).format(old=old),
-                edits, self.win._part_changed))
+        # one undo step: the script's label and the level's Line fields (redo() renames both now)
+        self.win.undo.push(RenameLabelCommand(
+            self, self.script_name, old, new, edits,
+            translate('dialogue', 'Rename label “{old}” (%n reference(s))', None, len(edits)).format(old=old)))
+
+    def script_for(self, script: str) -> rds.Script | None:
+        """The open script of that name; another script open: that one opened again first (None if refused)."""
+        if self.script is None or self.script_name is None or not same_script(script, self.script_name):
+            self._wanted_line = None
+            self.open_script(script)
+            if self.script_name is None or not same_script(script, self.script_name):
+                return None
+        return self.script
+
+    def label_renamed(self, name: str) -> None:
+        """After a rename (or its undo): the script has unsaved changes, the label is selected."""
+        self.filter.clear()
         self._changed()
-        self._select_label(new)
+        self._select_label(name)
 
     def _other_levels(self, label: str) -> list[str]:
         """Other levels (game data, output folder) whose dialogue actions name the label in this script."""
@@ -475,6 +539,15 @@ class DialoguePanel(QWidget):
         if self.script is None or self.script_name is None or self.win.need_output() is None:
             return False
         target = self.target(self.script_name)
+        if target is None:
+            msgbox.warning(self, APP, translate('dialogue', 'The script is not saved: its name “{script}” is no path '
+                                                            'below Levels/ ({why}).').format(
+                script=self.script_name, why=safepath.relative_problem(self.script_name) or ''))
+            return False
+        if not safepath.inside(target, self.win.output_dir()):
+            msgbox.warning(self, APP, translate('dialogue', 'The script is not saved: its file would lie outside the '
+                                                            'output folder:\n{path}').format(path=target.resolve()))
+            return False
         if self.win._inside_data(target):
             msgbox.warning(self, APP, translate('dialogue', 'The output folder lies inside the game data: the script is '
                                                             'not saved.'))
@@ -486,7 +559,11 @@ class DialoguePanel(QWidget):
                                                 ).format(error=e))
             return False
         target.parent.mkdir(parents=True, exist_ok=True)
-        target.write_bytes(data)
+        try:
+            safepath.atomic_write(target, data)
+        except OSError as e:
+            msgbox.warning(self, APP, translate('dialogue', 'The script is not saved: {error}').format(error=e))
+            return False
         self.dirty = False
         self.source = str(target)
         self.saved(self.script_name)
