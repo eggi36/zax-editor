@@ -794,6 +794,11 @@ existiert schon und wird beim Speichern überschrieben. Trotzdem anlegen?</trans
     </message>
     <message>
         <location filename="../../zaxeditor/app.py"/>
+        <source>a file of the game data: it is read only, saving writes into the output folder</source>
+        <translation>eine Datei der Spieldaten: Sie wird nur gelesen, Speichern schreibt in den Ausgabeordner</translation>
+    </message>
+    <message>
+        <location filename="../../zaxeditor/app.py"/>
         <source>Save as</source>
         <translation>Speichern unter</translation>
     </message>
@@ -808,6 +813,11 @@ Bitte einen Ort außerhalb der Spieldaten wählen.</translation>
         <location filename="../../zaxeditor/app.py"/>
         <source>Cannot be saved: characters outside Latin-1 ({error}).</source>
         <translation>Nicht speicherbar: Zeichen außerhalb von Latin-1 ({error}).</translation>
+    </message>
+    <message>
+        <location filename="../../zaxeditor/app.py"/>
+        <source>Cannot be saved: {error}</source>
+        <translation>Kann nicht gespeichert werden: {error}</translation>
     </message>
     <message>
         <location filename="../../zaxeditor/app.py"/>
@@ -912,6 +922,16 @@ Die Datei wird trotzdem gespeichert.</numerusform>
         <location filename="../../zaxeditor/app.py"/>
         <source>No .way written: without Zax.exe the way points are only approximate.</source>
         <translation>Keine .way geschrieben: ohne Zax.exe sind die Wegpunkte nur angenähert.</translation>
+    </message>
+    <message>
+        <location filename="../../zaxeditor/app.py"/>
+        <source>No mini map and no Rules.txt written: the level name (Partial File Name) “{name}” is no path below Levels/ ({why}).</source>
+        <translation>Keine Minimap und keine Rules.txt geschrieben: Der Levelname (Partial File Name) „{name}“ ist kein Pfad unter Levels/ ({why}).</translation>
+    </message>
+    <message>
+        <location filename="../../zaxeditor/app.py"/>
+        <source>No mini map and no Rules.txt written: they are written only into the output folder, and the level does not lie there below Levels/.</source>
+        <translation>Keine Minimap und keine Rules.txt geschrieben: Sie werden nur in den Ausgabeordner geschrieben, und das Level liegt nicht dort unter Levels/.</translation>
     </message>
     <message>
         <location filename="../../zaxeditor/app.py"/>
@@ -1499,6 +1519,11 @@ Gespeichert wird nach: {target}</numerusform>
     </message>
     <message>
         <location filename="../../zaxeditor/dialogue.py"/>
+        <source>(nowhere: the script name is no path below Levels/, {why})</source>
+        <translation>(nirgends: Der Skriptname ist kein Pfad unter Levels/, {why})</translation>
+    </message>
+    <message>
+        <location filename="../../zaxeditor/dialogue.py"/>
         <source>(no output folder chosen yet)</source>
         <translation>(noch kein Ausgabeordner gewählt)</translation>
     </message>
@@ -1554,6 +1579,17 @@ Gespeichert wird nach: {target}</numerusform>
         <location filename="../../zaxeditor/dialogue.py"/>
         <source>A line is too long: the game stops reading the script at a line of 3,999 characters or more.</source>
         <translation>Eine Zeile ist zu lang: das Spiel hört bei einer Zeile mit 3.999 oder mehr Zeichen auf, das Skript zu lesen.</translation>
+    </message>
+    <message>
+        <location filename="../../zaxeditor/dialogue.py"/>
+        <source>A line of the text begins with “:” or “//”:
+{line}
+
+The game reads a line beginning with “:” as a new label and skips a line beginning with “//”; the script format has no way to escape them. Put a space or another character in front, or reword the line.</source>
+        <translation>Eine Zeile des Texts beginnt mit „:“ oder „//“:
+{line}
+
+Das Spiel liest eine Zeile, die mit „:“ beginnt, als neues Label und überspringt eine Zeile, die mit „//“ beginnt; das Skriptformat kann sie nicht maskieren. Setze ein Leerzeichen oder ein anderes Zeichen davor oder formuliere die Zeile um.</translation>
     </message>
     <message>
         <location filename="../../zaxeditor/dialogue.py"/>
@@ -1628,6 +1664,18 @@ Gespeichert wird nach: {target}</numerusform>
     </message>
     <message>
         <location filename="../../zaxeditor/dialogue.py"/>
+        <source>The script is not saved: its name “{script}” is no path below Levels/ ({why}).</source>
+        <translation>Das Skript wird nicht gespeichert: Sein Name „{script}“ ist kein Pfad unter Levels/ ({why}).</translation>
+    </message>
+    <message>
+        <location filename="../../zaxeditor/dialogue.py"/>
+        <source>The script is not saved: its file would lie outside the output folder:
+{path}</source>
+        <translation>Das Skript wird nicht gespeichert: Seine Datei läge außerhalb des Ausgabeordners:
+{path}</translation>
+    </message>
+    <message>
+        <location filename="../../zaxeditor/dialogue.py"/>
         <source>The output folder lies inside the game data: the script is not saved.</source>
         <translation>Der Ausgabeordner liegt in den Spieldaten: das Skript wird nicht gespeichert.</translation>
     </message>
@@ -1635,6 +1683,11 @@ Gespeichert wird nach: {target}</numerusform>
         <location filename="../../zaxeditor/dialogue.py"/>
         <source>Cannot be saved: characters outside Latin-1 ({error}).</source>
         <translation>Kann nicht gespeichert werden: Zeichen außerhalb von Latin-1 ({error}).</translation>
+    </message>
+    <message>
+        <location filename="../../zaxeditor/dialogue.py"/>
+        <source>The script is not saved: {error}</source>
+        <translation>Das Skript wird nicht gespeichert: {error}</translation>
     </message>
     <message>
         <location filename="../../zaxeditor/dialogue.py"/>
@@ -10076,6 +10129,59 @@ Durch welche Textur ersetzen?</numerusform>
     </message>
 </context>
 <context>
+    <name>imageimport</name>
+    <message>
+        <location filename="../../zaxtools/imageimport.py"/>
+        <source>unknown kind “{kind}”</source>
+        <translation>unbekannte Art „{kind}“</translation>
+    </message>
+    <message>
+        <location filename="../../zaxtools/imageimport.py"/>
+        <source>the name is empty or contains one of / \ : * ? &quot; &lt; &gt; | ~</source>
+        <translation>der Name ist leer oder enthält eines von / \ : * ? &quot; &lt; &gt; | ~</translation>
+    </message>
+    <message>
+        <location filename="../../zaxtools/imageimport.py"/>
+        <source>the folder contains “~”, “..”, “:”, an empty folder name or a backslash</source>
+        <translation>der Ordner enthält „~“, „..“, „:“, einen leeren Ordnernamen oder einen Backslash</translation>
+    </message>
+    <message>
+        <location filename="../../zaxtools/imageimport.py"/>
+        <source>no image</source>
+        <translation>kein Bild</translation>
+    </message>
+    <message>
+        <location filename="../../zaxtools/imageimport.py"/>
+        <source>an image takes one PNG; choose “image sequence” or “model” for a series</source>
+        <translation>ein Bild nimmt ein PNG; für eine Serie „Bildsequenz“ oder „Neues Modell“ wählen</translation>
+    </message>
+    <message>
+        <location filename="../../zaxtools/imageimport.py"/>
+        <source>image size {w}×{h} outside 1 … 2048</source>
+        <translation>Bildgröße {w}×{h} außerhalb 1 … 2048</translation>
+    </message>
+    <message>
+        <location filename="../../zaxtools/imageimport.py"/>
+        <source>the model needs a sequence name</source>
+        <translation>das Modell braucht einen Sequenznamen</translation>
+    </message>
+    <message>
+        <location filename="../../zaxtools/imageimport.py"/>
+        <source>unknown blit type “{mode}”</source>
+        <translation>unbekannter Blit-Typ „{mode}“</translation>
+    </message>
+    <message>
+        <location filename="../../zaxtools/imageimport.py"/>
+        <source>every shipped texture is 128×128; the ground takes only that size (other sizes in a surface are not tested)</source>
+        <translation>jede mitgelieferte Textur ist 128×128; der Boden nimmt nur diese Größe (andere Größen in einer Fläche sind nicht getestet)</translation>
+    </message>
+    <message>
+        <location filename="../../zaxtools/imageimport.py"/>
+        <source>a texture is written without transparency: every pixel becomes opaque</source>
+        <translation>eine Textur wird ohne Transparenz geschrieben: Jedes Pixel wird deckend</translation>
+    </message>
+</context>
+<context>
     <name>importdlg</name>
     <message>
         <location filename="../../zaxeditor/importdlg.py"/>
@@ -10485,6 +10591,11 @@ Durch welche Textur ersetzen?</numerusform>
     </message>
     <message>
         <location filename="../../zaxtools/levelcheck.py"/>
+        <source>Level name leaves the data folder</source>
+        <translation>Levelname verlässt den Datenordner</translation>
+    </message>
+    <message>
+        <location filename="../../zaxtools/levelcheck.py"/>
         <source>Backslash in the level name</source>
         <translation>Backslash im Levelnamen</translation>
     </message>
@@ -10702,6 +10813,11 @@ Durch welche Textur ersetzen?</numerusform>
         <location filename="../../zaxtools/levelcheck.py"/>
         <source>The level name contains “\”: the game requires slashes “/” (&quot;Map Name *MAY NOT* contain backslashes&quot;).</source>
         <translation>Der Levelname enthält „\“: das Spiel verlangt Schrägstriche „/“ (&quot;Map Name *MAY NOT* contain backslashes&quot;).</translation>
+    </message>
+    <message>
+        <location filename="../../zaxtools/levelcheck.py"/>
+        <source>The level name “{name}” is no path below Levels/ ({why}): the game would look for the level&apos;s mini map outside its data, and the editor does not write the mini map or Rules.txt for it.</source>
+        <translation>Der Levelname „{name}“ ist kein Pfad unter Levels/ ({why}): Das Spiel würde die Minimap des Levels außerhalb seiner Daten suchen, und der Editor schreibt Minimap und Rules.txt dafür nicht.</translation>
     </message>
     <message>
         <location filename="../../zaxtools/levelcheck.py"/>
@@ -11326,6 +11442,11 @@ Durch welche Textur ersetzen?</numerusform>
     </message>
     <message>
         <location filename="../../zaxeditor/newleveldlg.py"/>
+        <source>The level’s path is not usable below Levels/: {why}.</source>
+        <translation>Der Pfad des Levels ist unter Levels/ nicht verwendbar: {why}.</translation>
+    </message>
+    <message>
+        <location filename="../../zaxeditor/newleveldlg.py"/>
         <source>Only characters from Latin-1 (no special characters from outside Western Europe).</source>
         <translation>Nur Zeichen aus Latin-1 (keine Sonderzeichen außerhalb Westeuropas).</translation>
     </message>
@@ -11801,6 +11922,44 @@ zu wechseln. Die genannten Namen sind Objekte jenes Levels.</translation>
         <location filename="../../zaxeditor/rulesdlg.py"/>
         <source>Save the changed Rules.txt?</source>
         <translation>Die geänderte Rules.txt speichern?</translation>
+    </message>
+</context>
+<context>
+    <name>safepath</name>
+    <message>
+        <location filename="../../zaxtools/safepath.py"/>
+        <source>the name is empty</source>
+        <translation>der Name ist leer</translation>
+    </message>
+    <message>
+        <location filename="../../zaxtools/safepath.py"/>
+        <source>the name contains a NUL character</source>
+        <translation>der Name enthält ein NUL-Zeichen</translation>
+    </message>
+    <message>
+        <location filename="../../zaxtools/safepath.py"/>
+        <source>the name is an absolute path</source>
+        <translation>der Name ist ein absoluter Pfad</translation>
+    </message>
+    <message>
+        <location filename="../../zaxtools/safepath.py"/>
+        <source>the name contains “:”</source>
+        <translation>der Name enthält „:“</translation>
+    </message>
+    <message>
+        <location filename="../../zaxtools/safepath.py"/>
+        <source>the name contains a folder “{segment}”</source>
+        <translation>der Name enthält einen Ordner „{segment}“</translation>
+    </message>
+    <message>
+        <location filename="../../zaxtools/safepath.py"/>
+        <source>the name contains an empty folder name (“//”)</source>
+        <translation>der Name enthält einen leeren Ordnernamen („//“)</translation>
+    </message>
+    <message>
+        <location filename="../../zaxtools/safepath.py"/>
+        <source>the path leads outside the folder</source>
+        <translation>der Pfad führt aus dem Ordner hinaus</translation>
     </message>
 </context>
 <context>

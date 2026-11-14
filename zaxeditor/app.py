@@ -20,7 +20,7 @@ from zaxtools.datasource import DataSource
 from zaxtools.level import Level
 from zaxtools.render import Assets
 
-from zaxtools import frm, minimap, transition
+from zaxtools import frm, minimap, safepath, transition
 from zaxtools import textformat as tf
 from zaxtools.level import LevelPart, num
 from zaxtools.catalog import Catalog
@@ -1115,11 +1115,11 @@ class MainWindow(QMainWindow):
         return True
 
     def _inside_data(self, p: Path) -> bool:
+        """Is ``p`` a file of a game installation (never written): the configured game data and its language pack,
+        the workspace's gamedata folder, or any folder of an edition (``outputdir.read_only``)?"""
         if self.ds is None:
-            return False
-        root = self.ds.root.resolve()
-        p = p.resolve()
-        return p == root or root in p.parents
+            return outputdir.read_only(p, None, None)
+        return outputdir.read_only(p, self.ds.root, self.ds.language_pack)
 
     # --- Open ------------------------------------------------------------------
     def maybe_discard(self) -> bool:
@@ -1175,6 +1175,11 @@ class MainWindow(QMainWindow):
         if path:
             self.load(Path(path).read_bytes(), ('file', path))
 
+    def _game_file(self) -> bool:
+        """The open level is a file of a game installation (File → Open level file): saving goes to the output
+        folder, never back into it."""
+        return bool(self.source) and self.source[0] == 'file' and self._inside_data(Path(self.source[1]))
+
     def load(self, data: bytes, source: tuple[str, str]) -> None:
         QApplication.setOverrideCursor(Qt.WaitCursor)
         self.statusBar().showMessage(translate('app', 'Loading level …'))
@@ -1205,7 +1210,7 @@ class MainWindow(QMainWindow):
         self.view.cancel_drawing()
         self.ground_action.setChecked(False)
         self.view.setScene(scene)
-        self.waynet.set_scene(scene, lambda: self.level, lambda m: self._check_context().way_model(m))
+        self.waynet.set_scene(scene, lambda: self.level, lambda: self._check_context().way_model)
         self.waynet.set_enabled(self.waynet_action.isChecked())
         scene.on_poly_edit = self._poly_edit
         scene.on_message = lambda t: self.statusBar().showMessage(t, 4000)
@@ -1219,7 +1224,11 @@ class MainWindow(QMainWindow):
         self._update_links()
         self.fit()
         self._update_title()
-        self.statusBar().showMessage(translate('app', '%n object(s) loaded', None, len(level.parts)), 4000)
+        msg = translate('app', '%n object(s) loaded', None, len(level.parts))
+        if self._game_file():
+            msg += ' – ' + translate('app', 'a file of the game data: it is read only, saving writes into the output '
+                                            'folder')
+        self.statusBar().showMessage(msg, 8000)
 
     def fit(self) -> None:
         if self.scene:
@@ -1233,7 +1242,9 @@ class MainWindow(QMainWindow):
             return None
         kind, ref = self.source
         if kind != 'data':
-            return Path(ref)
+            if not self._inside_data(Path(ref)):
+                return Path(ref)
+            ref = _data_relative(Path(ref))     # a file of a game installation: into the output folder, as 'data'
         out = self.need_output() if ask else self.output_dir()
         return out / ref if out is not None else None
 
@@ -1242,7 +1253,13 @@ class MainWindow(QMainWindow):
         if t is None:
             return False
         self._check_before_save()
-        return self._write(t)
+        moved = self._game_file()
+        if not self._write(t):
+            return False
+        if moved:                           # from now on the copy in the output folder is the level's file
+            self.source = ('file', str(t))
+            self._update_title()
+        return True
 
     def save_as(self) -> None:
         if self.level is None:
@@ -1270,7 +1287,11 @@ class MainWindow(QMainWindow):
                 error=e))
             return False
         target.parent.mkdir(parents=True, exist_ok=True)
-        target.write_bytes(data)
+        try:
+            safepath.atomic_write(target, data)
+        except OSError as e:
+            msgbox.warning(self, APP, translate('app', 'Cannot be saved: {error}').format(error=e))
+            return False
         self.undo.setClean()
         way = target.with_suffix('.way').name
         rel = self.source[1] if self.source and self.source[0] == 'data' else _data_relative(target)
@@ -1282,8 +1303,14 @@ class MainWindow(QMainWindow):
         elif self.ds.exists(str(Path(rel).with_suffix('.way'))):
             steps.append(translate('app', 'Delete “{file}” there – the game rebuilds the way points when '
                                           'loading.').format(file=way))
-        mm = self._write_minimap(target)
-        gm = self._game_minimap(target)
+        root, why = self._companion_root(target)
+        mm = self._write_minimap(root) if root is not None else None
+        gm = self._game_minimap(root) if root is not None else None
+        wants_rules = bool(self.start_level and self.start_level == self.level.partial_file_name)
+        if why and (self.minimap_action.isChecked() or self.minimap_game_action.isChecked() or wants_rules):
+            steps.append(why)
+            if quiet:
+                self.statusBar().showMessage(why, 10000)
         if mm:
             steps.append(translate('app', 'Copy the mini maps (.frm16 for 16 bit, .frm for 256 colours) from\n'
                                           '{source}\nto {target}.').format(source=mm[0], target=win(mm[1])))
@@ -1294,14 +1321,15 @@ class MainWindow(QMainWindow):
                                           'folder.').format(source=gm[0], target=win(gm[1]), tga=gm[2]))
         elif self.minimap_action.isChecked() and not minimap.can_render(self.level):
             steps.append(translate('app', '(Mini map not redrawn: the visible mini map area is empty.)'))
-        if not quiet and self.start_level and self.start_level == self.level.partial_file_name:
-            rules = self._write_rules(target)
+        if not quiet and wants_rules and root is not None:
+            rules = self._write_rules(root)
             if rules:
                 steps.append(translate('app', 'Back up the game folder, then copy\n{rules}\nto {target} (a new game '
                                               'then starts in this level).').format(rules=rules,
                                                                                     target=win('Rules.txt')))
         if quiet:
-            self.statusBar().showMessage(translate('app', 'Saved: {path}').format(path=target), 6000)
+            if not why:
+                self.statusBar().showMessage(translate('app', 'Saved: {path}').format(path=target), 6000)
             return True
         msgbox.information(self, APP, translate('app', 'Saved:\n{path}\n\nTo test in the game:\n{steps}').format(
             path=target, steps='\n'.join(f'{i}. {s}' for i, s in enumerate(steps, 1))))
@@ -1376,7 +1404,7 @@ class MainWindow(QMainWindow):
                 QApplication.restoreOverrideCursor()
             if res.exact:
                 from zaxtools import way as waylib
-                out.write_bytes(waylib.dumps(res.way))
+                safepath.atomic_write(out, waylib.dumps(res.way))
                 return True
             self.statusBar().showMessage(translate('app', 'No .way written: without Zax.exe the way points are only '
                                                           'approximate.'), 6000)
@@ -1384,14 +1412,38 @@ class MainWindow(QMainWindow):
             out.unlink(missing_ok=True)
         return False
 
-    def _write_minimap(self, target: Path):
-        """Redraw the mini maps (.frm16 and .frm) and put them next to the target's Levels structure:
+    def _companion_root(self, target: Path) -> tuple[Path | None, str | None]:
+        """The folder that stands for DATA for the files that belong to the saved level besides its .way (mini map,
+        placeholders, Rules.txt), or None and why not: they are written only inside the output folder, and only for a
+        Partial File Name that is a path below it (a level from anyone could name ``../..``)."""
+        why = minimap.name_problem(self.level)
+        if why is not None:
+            return None, translate('app', 'No mini map and no Rules.txt written: the level name (Partial File Name) '
+                                          '“{name}” is no path below Levels/ ({why}).').format(
+                name=self.level.partial_file_name, why=why)
+        root = _data_root(target)
+        out = self.output_dir()
+        if out is None or not safepath.inside(root, out) or self._inside_data(root):
+            return None, translate('app', 'No mini map and no Rules.txt written: they are written only into the '
+                                          'output folder, and the level does not lie there below Levels/.')
+        return root, None
+
+    def _companion(self, root: Path, rel: str) -> Path | None:
+        """``root/rel`` if it stays inside ``root`` (links followed) and outside the game data, else None."""
+        try:
+            p = safepath.join_inside(root, rel)
+        except ValueError:
+            return None
+        return None if self._inside_data(p) else p
+
+    def _write_minimap(self, root: Path):
+        """Redraw the mini maps (.frm16 and .frm) and put them below ``root`` (``_companion_root``):
         <root>/Cache/Levels/<Partial File Name>.*. Returns (folder, folder relative to DATA)."""
         if not self.minimap_action.isChecked() or not minimap.can_render(self.level):
             return None
-        root = _data_root(target)
         rel = Path(minimap.minimap_path(self.level)).parent
-        if self._inside_data(root / rel):
+        names = minimap.game_files(self.level)[:2]
+        if any(self._companion(root, n) is None for n in names):
             return None
         QApplication.setOverrideCursor(Qt.WaitCursor)
         self.statusBar().showMessage(translate('app', 'Drawing the mini map …'))
@@ -1399,9 +1451,11 @@ class MainWindow(QMainWindow):
         try:
             pal = frm.load_palette(self.ds.read('Palettes/GamePalette.pal'))
             for name, data in minimap.minimap_files(self.level, self.assets, pal).items():
-                out = root / name
+                out = self._companion(root, name)
+                if out is None:
+                    continue
                 out.parent.mkdir(parents=True, exist_ok=True)
-                out.write_bytes(data)
+                safepath.atomic_write(out, data)
         finally:
             QApplication.restoreOverrideCursor()
             self.statusBar().clearMessage()
@@ -1414,32 +1468,32 @@ class MainWindow(QMainWindow):
         if on and other.isChecked():
             other.setChecked(False)
 
-    def _game_minimap(self, target: Path):
+    def _game_minimap(self, root: Path):
         """Let the game draw the mini map: delete the level's mini map files next to the target's
         Levels structure (images and the game's -<name>.tga) and put the placeholders of the wrong
         size there (minimap.placeholder_files). Returns (folder, folder relative to DATA, name of
         the .tga) or None when the option is off."""
         if not self.minimap_game_action.isChecked():
             return None
-        root = _data_root(target)
         rel = Path(minimap.minimap_path(self.level)).parent
         files = minimap.game_files(self.level)
-        if any(self._inside_data(root / f) for f in files):
+        paths = [self._companion(root, f) for f in files]
+        if any(p is None for p in paths):       # deletes only inside the output folder
             return None
-        for f in files:
-            (root / f).unlink(missing_ok=True)
+        for p in paths:
+            p.unlink(missing_ok=True)
         for name, data in minimap.placeholder_files(self.level).items():
-            out = root / name
+            out = self._companion(root, name)
             out.parent.mkdir(parents=True, exist_ok=True)
-            out.write_bytes(data)
+            safepath.atomic_write(out, data)
         return root / rel, rel.as_posix() + '/', Path(files[2]).name
 
-    def _write_rules(self, target: Path) -> Path | None:
-        """Write the game data's Rules.txt with ``First Map Name`` = this level next to the target's
-        Levels structure (the start point stays ``First Map Spawn Point``); starts from the Rules.txt
-        already there (Level → Rules.txt …)."""
-        out = _data_root(target) / 'Rules.txt'
-        if self._inside_data(out):
+    def _write_rules(self, root: Path) -> Path | None:
+        """Write the game data's Rules.txt with ``First Map Name`` = this level into ``root`` (``_companion_root``;
+        the start point stays ``First Map Spawn Point``); starts from the Rules.txt already there (Level → Rules.txt
+        …)."""
+        out = self._companion(root, 'Rules.txt')
+        if out is None:
             return None
         rules = rules_txt.load(self.ds, out.parent)       # keeps a Rules.txt edited in the editor
         rules_txt.set_start(rules, self.level.partial_file_name)

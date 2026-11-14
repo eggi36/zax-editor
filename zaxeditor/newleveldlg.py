@@ -11,7 +11,7 @@ from PySide6.QtWidgets import (QCheckBox, QComboBox, QDialog, QDialogButtonBox, 
                                QHBoxLayout, QLabel, QLineEdit, QListWidget, QListWidgetItem,
                                QPushButton, QSpinBox, QVBoxLayout, QWidget)
 
-from zaxtools import newlevel
+from zaxtools import newlevel, safepath
 
 from .groundtool import THUMB, TexturePicker, thumbnail
 from .i18n import translate
@@ -153,6 +153,9 @@ class NewLevelDialog(QDialog):
             return translate('newleveldlg', 'Please enter a name.')
         if '\\' in p or any(c in p for c in ':*?"<>|'):
             return translate('newleveldlg', 'Name and folder without \\ : * ? " < > | (paths only with /).')
+        why = safepath.relative_problem(p)
+        if why is not None:
+            return translate('newleveldlg', 'The level’s path is not usable below Levels/: {why}.').format(why=why)
         try:
             (p + self.desc.text()).encode('latin-1')
         except UnicodeEncodeError:

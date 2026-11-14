@@ -36,7 +36,7 @@ class WayNetwork:
         self.items: list = []
         self.scene = None
         self.enabled = False
-        self.model_data = None            # waymap model_data provider
+        self.model_data = None            # () -> waymap model_data function, called in the GUI thread
         self.result: waymap.Result | None = None
         self._status = status or (lambda text: None)
         self._gen = 0
@@ -54,7 +54,9 @@ class WayNetwork:
         self.items = []
 
     def set_scene(self, scene, level_fn, model_data) -> None:
-        """A new level: ``level_fn()`` gives the current Level (None without one)."""
+        """A new level: ``level_fn()`` gives the current Level (None without one); ``model_data()`` the function that
+        gives a model's ``waymap.ModelData`` (a bound method of the level check's context, which locks its caches).
+        Both are called in the GUI thread only; the worker gets the level as bytes and that function."""
         self.clear()
         self.result = None
         self.scene, self._level_fn, self.model_data = scene, level_fn, model_data
@@ -77,7 +79,7 @@ class WayNetwork:
         level = self._level_fn() if self._level_fn else None
         if level is None or self.model_data is None:
             return
-        gen, data, md = self._gen, level.to_bytes(), self.model_data
+        gen, data, md = self._gen, level.to_bytes(), self.model_data()
         self._status(translate('waynet', 'Computing the way point network …'))
 
         def work():
