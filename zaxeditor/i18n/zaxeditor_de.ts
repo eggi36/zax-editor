@@ -722,6 +722,18 @@ Jeder Ordner außerhalb der Spieldaten und außerhalb des Editors selbst ist mö
     </message>
     <message>
         <location filename="../../zaxeditor/app.py"/>
+        <source>The port’s game copy was found. Its Data folder can be the output folder too: the game then lists your levels in Load Map, and a saved original level covers the original there.
+{path}</source>
+        <translation>Die Spielkopie des Ports wurde gefunden. Ihr Data-Ordner kann ebenfalls der Ausgabeordner sein: Das Spiel listet deine Level dann unter „Load Map“, und ein gespeicherter Original-Level überdeckt dort das Original.
+{path}</translation>
+    </message>
+    <message>
+        <location filename="../../zaxeditor/app.py"/>
+        <source>Use the port’s Data folder</source>
+        <translation>Data-Ordner des Ports verwenden</translation>
+    </message>
+    <message>
+        <location filename="../../zaxeditor/app.py"/>
         <source>Choose folder …</source>
         <translation>Ordner wählen …</translation>
     </message>
@@ -739,6 +751,11 @@ Jeder Ordner außerhalb der Spieldaten und außerhalb des Editors selbst ist mö
         <location filename="../../zaxeditor/app.py"/>
         <source>Choose output folder</source>
         <translation>Ausgabeordner wählen</translation>
+    </message>
+    <message>
+        <location filename="../../zaxeditor/app.py"/>
+        <source>No game copy of the port was found. Choose the Data folder inside the port’s game folder by hand.</source>
+        <translation>Keine Spielkopie des Ports gefunden. Wähle den Data-Ordner im Spielordner des Ports von Hand.</translation>
     </message>
     <message>
         <location filename="../../zaxeditor/app.py"/>
@@ -883,6 +900,47 @@ To test in the game:
 
 Zum Testen im Spiel:
 {steps}</translation>
+    </message>
+    <message>
+        <location filename="../../zaxeditor/app.py"/>
+        <source>“{file}” written next to it (the way points as the game builds them).</source>
+        <translation>„{file}“ daneben geschrieben (die Wegpunkte, wie das Spiel sie baut).</translation>
+    </message>
+    <message>
+        <location filename="../../zaxeditor/app.py"/>
+        <source>No .way written: the game keeps using the original level’s way points (File → Settings: “Write the way point map (.way) when saving”, with Zax.exe chosen there).</source>
+        <translation>Keine .way geschrieben: Das Spiel verwendet weiter die Wegpunkte des Original-Levels (Datei → Einstellungen: „Wegpunktkarte (.way) beim Speichern schreiben“, mit dort gewählter Zax.exe).</translation>
+    </message>
+    <message>
+        <location filename="../../zaxeditor/app.py"/>
+        <source>Mini maps written to {path}.</source>
+        <translation>Minikarten nach {path} geschrieben.</translation>
+    </message>
+    <message>
+        <location filename="../../zaxeditor/app.py"/>
+        <source>Mini map placeholders written to {path}: the game draws the mini map when loading.</source>
+        <translation>Minikarten-Platzhalter nach {path} geschrieben: Das Spiel zeichnet die Minikarte beim Laden.</translation>
+    </message>
+    <message>
+        <location filename="../../zaxeditor/app.py"/>
+        <source>Rules.txt written to {path}: a new game starts in this level.</source>
+        <translation>Rules.txt nach {path} geschrieben: Ein neues Spiel beginnt in diesem Level.</translation>
+    </message>
+    <message>
+        <location filename="../../zaxeditor/app.py"/>
+        <source>This is a level of the original game ({rel}): the copy saved here now covers the original level in the game (Load Map, new games, level changes) until you delete it.</source>
+        <translation>Dies ist ein Level des Originalspiels ({rel}): Die hier gespeicherte Kopie überdeckt jetzt den Original-Level im Spiel („Load Map“, neue Spiele, Levelwechsel), bis du sie löschst.</translation>
+    </message>
+    <message>
+        <location filename="../../zaxeditor/app.py"/>
+        <source>Saved into the port’s game data:
+{path}
+
+The game finds the level in Load Map; with [Port] EditorLink=1 a running level reloads by itself.</source>
+        <translation>In die Spieldaten des Ports gespeichert:
+{path}
+
+Das Spiel findet den Level unter „Load Map“; mit [Port] EditorLink=1 lädt ein laufender Level von selbst neu.</translation>
     </message>
     <message>
         <location filename="../../zaxeditor/app.py"/>
@@ -11465,6 +11523,28 @@ Durch welche Textur ersetzen?</numerusform>
     <name>outputdir</name>
     <message>
         <location filename="../../zaxeditor/outputdir.py"/>
+        <source>Nothing can be written into this folder:
+{path}
+
+{error}</source>
+        <translation>In diesen Ordner kann nichts geschrieben werden:
+{path}
+
+{error}</translation>
+    </message>
+    <message>
+        <location filename="../../zaxeditor/outputdir.py"/>
+        <source>This folder lies inside the Data folder of the port&apos;s game copy:
+{path}
+
+Choose that Data folder itself, so that the game finds the levels.</source>
+        <translation>Dieser Ordner liegt im Data-Ordner der Spielkopie des Ports:
+{path}
+
+Wähle diesen Data-Ordner selbst, damit das Spiel die Level findet.</translation>
+    </message>
+    <message>
+        <location filename="../../zaxeditor/outputdir.py"/>
         <source>This folder lies inside the editor itself:
 {path}
 
@@ -11484,17 +11564,6 @@ The editor never writes into the game data. Please choose another folder.</sourc
 {path}
 
 Der Editor schreibt nie in die Spieldaten. Bitte wähle einen anderen Ordner.</translation>
-    </message>
-    <message>
-        <location filename="../../zaxeditor/outputdir.py"/>
-        <source>Nothing can be written into this folder:
-{path}
-
-{error}</source>
-        <translation>In diesen Ordner kann nichts geschrieben werden:
-{path}
-
-{error}</translation>
     </message>
 </context>
 <context>
@@ -12044,6 +12113,11 @@ zu wechseln. Die genannten Namen sind Objekte jenes Levels.</translation>
         <location filename="../../zaxeditor/settingsdlg.py"/>
         <source>Output folder</source>
         <translation>Ausgabeordner</translation>
+    </message>
+    <message>
+        <location filename="../../zaxeditor/settingsdlg.py"/>
+        <source>Port’s Data folder</source>
+        <translation>Data-Ordner des Ports</translation>
     </message>
     <message>
         <location filename="../../zaxeditor/settingsdlg.py"/>

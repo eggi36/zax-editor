@@ -7,7 +7,7 @@ from PySide6.QtCore import Qt
 from PySide6.QtWidgets import (QCheckBox, QComboBox, QDialog, QDialogButtonBox, QFormLayout, QGroupBox,
                                QHBoxLayout, QLabel, QPushButton, QVBoxLayout, QWidget)
 
-from . import i18n
+from . import i18n, outputdir
 from .i18n import translate
 
 PATH_WIDTH = 320        # width of a path in the window (logical pixels)
@@ -31,7 +31,9 @@ class SettingsDialog(QDialog):
                  [(translate('settingsdlg', 'Choose …'), win.choose_language_pack),
                   (translate('settingsdlg', 'None'), win.clear_language_pack)]),
                 ('output', translate('settingsdlg', 'Output folder'),
-                 [(translate('settingsdlg', 'Choose …'), win.choose_output)]),
+                 [(translate('settingsdlg', 'Choose …'), win.choose_output)]
+                 + ([(translate('settingsdlg', 'Port’s Data folder'), win.use_port_output)]
+                    if outputdir.port_suggestion() is not None else [])),
                 ('exe', translate('settingsdlg', 'Zax.exe'),
                  [(translate('settingsdlg', 'Choose …'), win.choose_exe)])):
             row = QWidget()
