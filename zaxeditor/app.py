@@ -396,6 +396,7 @@ class MainWindow(QMainWindow):
         self.models.attach_requested.connect(lambda m: self.attach_model(m))
         self._viewer = None                             # Window -> Model viewer (zaxeditor.viewer)
         self._settings_dlg = None                       # File -> Settings (zaxeditor.settingsdlg)
+        self._covering_told: set[str] = set()           # saved originals in the port's Data folder, told once
         self._output_asked = False                      # a package asked for its output folder in this session
         self._usage_job = None                          # the background analysis of the models' use (zaxtools.usage)
         self._catalog_job = None                        # the catalogue built in the background (_load_catalog)
@@ -1056,6 +1057,14 @@ class MainWindow(QMainWindow):
                                                     'outside the editor itself will do. You can change it later in '
                                                     'File → Settings.').format(path=suggested))
             b_use = box.addButton(translate('app', 'Use the suggested folder'), QMessageBox.AcceptRole)
+            port = outputdir.port_suggestion()
+            b_port = None
+            if port is not None:
+                box.setInformativeText(box.informativeText() + '\n\n' + translate(
+                    'app', 'The port’s game copy was found. Its Data folder can be the output folder too: the '
+                           'game then lists your levels in Load Map, and a saved original level covers the '
+                           'original there.\n{path}').format(path=port))
+                b_port = box.addButton(translate('app', 'Use the port’s Data folder'), QMessageBox.ActionRole)
             b_pick = box.addButton(translate('app', 'Choose folder …'), QMessageBox.ActionRole)
             b_later = box.addButton(translate('app', 'Later'), QMessageBox.RejectRole)
             box.setDefaultButton(b_use)
@@ -1063,6 +1072,8 @@ class MainWindow(QMainWindow):
             box.exec()
             if box.clickedButton() is b_use:
                 path = str(suggested)
+            elif b_port is not None and box.clickedButton() is b_port:
+                path = str(port)
             elif box.clickedButton() is b_pick:
                 start = suggested if suggested.is_dir() else suggested.parent
                 path = self._pick_output_folder(str(start))
@@ -1088,6 +1099,16 @@ class MainWindow(QMainWindow):
             if not path or self.set_output(path):
                 return
 
+    def use_port_output(self) -> None:
+        """The settings' button: the Data folder of the port's game copy (``outputdir.port_suggestion``) as the
+        output folder."""
+        port = outputdir.port_suggestion()
+        if port is None:
+            msgbox.information(self, APP, translate('app', 'No game copy of the port was found. Choose the Data '
+                                                           'folder inside the port’s game folder by hand.'))
+            return
+        self.set_output(port)
+
     def _data_path(self) -> str | None:
         """The game data in use (or chosen): the folder "Data" or the Data.dat."""
         if self.ds is not None:
@@ -1102,7 +1123,7 @@ class MainWindow(QMainWindow):
             msgbox.warning(self, APP, why)
             return False
         before = self.output_dir()
-        new = Path(path).expanduser().resolve()
+        new = outputdir.port_output(path) or Path(path).expanduser().resolve()   # the port's folder: its Data
         self.settings.setValue('output', str(new))
         if self.props.dialogs is not None:
             self.props.dialogs = DialogScripts(self.ds, self.output_roots())
@@ -1287,14 +1308,19 @@ class MainWindow(QMainWindow):
                 error=e))
             return False
         target.parent.mkdir(parents=True, exist_ok=True)
+        rel = self.source[1] if self.source and self.source[0] == 'data' else _data_relative(target)
+        port = outputdir.port_data(target) is not None
+        if port:    # the running port reloads when the level changes: its .way and mini map are written before it
+            notes, why = self._port_companions(target, rel, quiet)
         try:
             safepath.atomic_write(target, data)
         except OSError as e:
             msgbox.warning(self, APP, translate('app', 'Cannot be saved: {error}').format(error=e))
             return False
         self.undo.setClean()
+        if port:
+            return self._written_port(target, rel, quiet, notes, why)
         way = target.with_suffix('.way').name
-        rel = self.source[1] if self.source and self.source[0] == 'data' else _data_relative(target)
         win = lambda p: 'DATA\\' + Path(p).as_posix().replace('/', chr(92))
         steps = [translate('app', 'Copy the file to {path}.').format(path=win(rel))]
         if self._write_way(target):
@@ -1333,6 +1359,55 @@ class MainWindow(QMainWindow):
             return True
         msgbox.information(self, APP, translate('app', 'Saved:\n{path}\n\nTo test in the game:\n{steps}').format(
             path=target, steps='\n'.join(f'{i}. {s}' for i, s in enumerate(steps, 1))))
+        return True
+
+    def _port_companions(self, target: Path, rel: str, quiet: bool) -> tuple[list[str], str | None]:
+        """Saving into the Data folder of the port's game copy (``outputdir.port_data``), before the level itself: the
+        way points, the mini map and Rules.txt as for any output folder (the running port with [Port] EditorLink
+        reloads once the level file changes, so they are in place by then). The notes for the saved message and why
+        the mini map was not written."""
+        notes = []
+        if self._write_way(target):
+            notes.append(translate('app', '“{file}” written next to it (the way points as the game builds '
+                                          'them).').format(file=target.with_suffix('.way').name))
+        elif self.ds.exists(str(Path(rel).with_suffix('.way'))):
+            notes.append(translate('app', 'No .way written: the game keeps using the original level’s way points '
+                                          '(File → Settings: “Write the way point map (.way) when saving”, with Zax.exe chosen there).'))
+        root, why = self._companion_root(target)
+        mm = self._write_minimap(root) if root is not None else None
+        gm = self._game_minimap(root) if root is not None else None
+        if why and (self.minimap_action.isChecked() or self.minimap_game_action.isChecked()):
+            notes.append(why)
+        if mm:
+            notes.append(translate('app', 'Mini maps written to {path}.').format(path=mm[0]))
+        elif gm:
+            notes.append(translate('app', 'Mini map placeholders written to {path}: the game draws the mini map '
+                                          'when loading.').format(path=gm[0]))
+        if not quiet and self.start_level and self.start_level == self.level.partial_file_name and root is not None:
+            rules = self._write_rules(root)
+            if rules:
+                notes.append(translate('app', 'Rules.txt written to {path}: a new game starts in this level.').format(
+                    path=rules))
+        return notes, why
+
+    def _written_port(self, target: Path, rel: str, quiet: bool, notes: list[str], why: str | None) -> bool:
+        """After saving into the port's Data folder: no copy steps (the game reads the folder itself), and once per
+        level and session the notice that a saved original level covers the shipped one."""
+        covers = self.ds is not None and self.ds.exists(rel)
+        key = str(target.resolve())
+        if covers and key not in self._covering_told:   # told once per level and session, in the next saved message
+            notes.insert(0, translate('app', 'This is a level of the original game ({rel}): the copy saved here now '
+                                             'covers the original level in the game (Load Map, new games, level '
+                                             'changes) until you delete it.').format(rel=rel))
+            if not quiet:
+                self._covering_told.add(key)
+        if quiet:
+            self.statusBar().showMessage(notes[0] if covers and notes else translate('app', 'Saved: {path}').format(
+                path=target), 10000)
+            return True
+        text = translate('app', 'Saved into the port’s game data:\n{path}\n\nThe game finds the level in Load Map; '
+                                'with [Port] EditorLink=1 a running level reloads by itself.').format(path=target)
+        msgbox.information(self, APP, text + ''.join('\n\n' + n for n in notes))
         return True
 
     # --- Level check -----------------------------------------------------------------

@@ -220,6 +220,46 @@ def _check_write_guards(report):
             checks += [res is not None and (out / 'Cache/Levels/Test/Own.frm16').is_file()]
             checks += [_data_relative(orig) == 'Levels/ACT 1/01 Main.zax']
 
+            # the port's game copy (zax-import: DATA.dat and Zax-Data.bin, no Zax.exe): its Data folder may be the
+            # output folder (also chosen as the copy itself), not a folder below it; DATA.dat stays read only;
+            # a folder with Zax.exe is an original installation even with the marker
+            import os
+            port = t / 'Port Copy'
+            (port / 'Data' / 'Levels').mkdir(parents=True)
+            (port / 'DATA.dat').write_bytes(b'')
+            (port / 'GERMAN.RED').write_bytes(b'')
+            (port / 'Zax-Data.bin').write_bytes(b'x')
+            pdata = port / 'Data'
+            checks += [outputdir.is_port_copy(port), outputdir.port_output(port) == pdata,
+                       outputdir.port_output(pdata) == pdata, outputdir.problem(pdata, None, None) is None,
+                       outputdir.problem(port, None, None) is None,
+                       outputdir.problem(pdata / 'Levels', None, None) is not None,
+                       outputdir.problem(pdata, str(port / 'DATA.dat'), None) is None,
+                       not outputdir.read_only(pdata / 'Levels' / 'x.zax', str(port / 'DATA.dat'), None),
+                       outputdir.read_only(port / 'DATA.dat', str(port / 'DATA.dat'), None),
+                       outputdir.read_only(port / 'Zax-Data.bin', None, None)]
+            pwin = Win(pdata)
+            pwin.source = ('file', str(pdata / 'Levels' / 'x.zax'))
+            checks += [not pwin._game_file(), pwin._target() == pdata / 'Levels' / 'x.zax']
+            saved_env = os.environ.get('ZAX_APP_SUPPORT_DIR')
+            os.environ['ZAX_APP_SUPPORT_DIR'] = str(port)
+            try:
+                checks += [outputdir.port_suggestion() == pdata]
+            finally:
+                if saved_env is None:
+                    del os.environ['ZAX_APP_SUPPORT_DIR']
+                else:
+                    os.environ['ZAX_APP_SUPPORT_DIR'] = saved_env
+            (port / 'zax.exe').write_bytes(b'')
+            checks += [not outputdir.is_port_copy(port), outputdir.problem(pdata, None, None) is not None,
+                       outputdir.read_only(pdata / 'Levels' / 'x.zax', None, None)]
+            (port / 'zax.exe').unlink()
+            nested = game / 'Port Copy'           # a copy inside an original installation counts as that one
+            (nested / 'Data').mkdir(parents=True)
+            (nested / 'DATA.dat').write_bytes(b'')
+            (nested / 'Zax-Data.bin').write_bytes(b'x')
+            checks += [outputdir.problem(nested / 'Data', None, None) is not None]
+
             # renaming a dialogue label and its Line= fields is one undo step
             text = ('\t\tLevel Part=CEntityBase\r\n\t\t{\r\n\t\t\tName=Talker\r\n'
                     '\t\t\tAction=CZaxDialogAction\r\n\t\t\t{\r\n\t\t\t\tScript=Test/Talk\r\n'
